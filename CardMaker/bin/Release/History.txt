@@ -1,6 +1,53 @@
 Card Maker Version History
 --------------------------
-0.99.4.0
+1.0.0.2
+- Added ability to translate rotated elements within the original and resulting bounds
+- Fixed issue with Local Google Cache
+- Fixed crash related to clearing the Image Cache and FormattedText (hopefully)
+- Added individual export button to the canvas toolbar
+- Added clipboard copy button to the canvas toolbar
+- Added font preview to the font selection dialog.
+- Fixed export issue involving use of the cardcount functionality
+- Added background color for all element types
+- Added zoom helpers (Fit + Fit Horizontal)... will someone need "Fit Vertical" ???
+- Added inline background shape functionality
+- Added inline background graphic functionality
+- Added graphic tiling option ("tile size")
+- Added switch alternative with a different delimiter (customizable!)
+- Fixed problem with random number functionality (text after the replacement was lost!)
+- Fixed issue with justified text (not clear it was even functional...)
+- Removed translation for substrings that results in an error message (now it will just translate to an empty string)
+- Added AddOverrideField to JavaScript definition functionality (Thanks to salmelo - github pull request)
+
+1.0.0.1
+- Added divider functionality
+- Added ![cardcount] functionality to the Incept translator
+- Added ability to override element fields in the define/variable field with $[fieldname:value] (same override formatting as data source)
+- Added ability to configure PDF exports in cm, mm, and inches
+- Added ability to configure Layout size based on cm, mm, and inch values
+- Added sub counter functionality to file name (Thanks Feynt)
+- Fixed issue with BGC FormattedText tag not respecting the x/y offset values
+- Default the alpha/opacity value for fc/bgc tags to that of the element (or whatever its state is as of tag evaluation) if the alpha value is not specified (for colors)
+- Apply the alpha/opacity of the element (at the time of evaluation) for bgi/img tags
+- Numeric (integer) overrides can now be specified in hex form (0x## or just ##) Example: 0xC4 (good idea) or C4 (not a good idea)
+- Added Google spreadsheet browser to the Project Settings dialog.
+- Added Project Settings to project menu (shocking!)
+- Element enabled state toggle is now part of undo/redo
+- Disabled elements no longer accept changes (well hopefully). They should also block some multi-element actions.
+- Added Clear Image Cache and Reload References buttons to the Canvas toolbar
+- Minor improvements to the layout template selection dialog (including a text filter)
+- Added random number functionality with #random;min;max#.
+- Fixed bug with #empty usage in define/reference values.
+- Added repeat functionality for repetition when translating
+- Added ![elementname] translator
+- Added %[x,#,#] substring translator
+- Added better handling of fonts that do not have a "Regular" style
+- Fixed Issues dialog functionality
+
+1.0.0.0
+- Added limit to the number of loops of translation within Incept (should protect against typos)
+- Added pixel (px) tag to allow exact pixel location to be specified for drawing with FormattedText
+- Added alignment tags to override the horizontal alignment of FormattedText (useful in some situations)
 - Added line spacing tag (ls) for FormattedText. This with store and override the existing line spacing.
 - Significant changes to order and general translation  functionality with if/switch (Incept specific)
 - Changed the issues window to indicate the layout, not the layout index

@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2016 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -112,9 +112,10 @@ namespace CardMaker.Card.FormattedText
                         if (bCloseTag)
                         {
                             // find the tag to actually close
-                            var zMarkupTypeToSeek = MarkupBase.GetMarkupType(sTagName);
+                            var zMarkupTypeToSeek = MarkupUtil.GetMarkupType(sTagName);
                             if (null != zMarkupTypeToSeek)
                             {
+#warning no markup stack support... 
                                 for (int nMarkup = listMarkups.Count - 1; nMarkup > -1; nMarkup--)
                                 {
                                     if (listMarkups[nMarkup].GetType() == zMarkupTypeToSeek)

@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 // SOFTWARE.
 ////////////////////////////////////////////////////////////////////////////////
 
+using System.Drawing;
 using System.Text;
 
 namespace CardMaker.Data
@@ -35,5 +36,6 @@ namespace CardMaker.Data
         public const char CHAR_FILE_SPLIT = '|';
         public const int MAX_RECENT_PROJECTS = 10;
         public const string GOOGLE_CACHE_FILE = ".CardMakerGoogleCache.dat";
+        public static readonly Color NoColor = Color.FromArgb(0, 0, 0, 0);
     }
 }

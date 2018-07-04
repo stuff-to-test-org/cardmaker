@@ -1,4 +1,28 @@
-﻿using CardMaker.Card;
+﻿////////////////////////////////////////////////////////////////////////////////
+// The MIT License (MIT)
+//
+// Copyright (c) 2018 Tim Stair
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+////////////////////////////////////////////////////////////////////////////////
+
+using CardMaker.Card;
 using CardMaker.XML;
 using NUnit.Framework;
 using System;
@@ -12,6 +36,8 @@ namespace UnitTest.DeckObject
     [TestFixture]
     internal class JavaScriptStringTranslation
     {
+        private const string TEST_ELEMENT_NAME = "testElement";
+
         private TestDeck _testDeck;
         private DeckLine _testLine;
         private ProjectLayoutElement _testElement;
@@ -21,7 +47,7 @@ namespace UnitTest.DeckObject
         {
             _testDeck = new TestDeck(new JavaScriptTranslatorFactory());
             _testLine = new DeckLine(new List<string>());
-            _testElement = new ProjectLayoutElement("testElement");
+            _testElement = new ProjectLayoutElement(TEST_ELEMENT_NAME);
         }
 
         // this test is useless without the moq or something to detect cache
@@ -247,6 +273,139 @@ namespace UnitTest.DeckObject
             _testElement.type = ElementType.FormattedText.ToString();
             var result = _testDeck.TranslateString(line, _testLine, _testElement, false);
             return result.String;
+        }
+
+        [Test]
+        public void ValidateDefinitionBasedOverrides()
+        {
+            _testDeck.ProcessLinesPublic(
+                new List<List<string>>(),
+                new List<List<string>>(),
+                null);
+            const string RESULT = "RESULT";
+            const int X = 45;
+            const int Y = 55;
+            const int WIDTH = 65;
+            const int HEIGHT = 75;
+            const int BORDERTHICKNESS = 85;
+            const int OPACITY = 95;
+            const int OUTLINETHICKNESS = 105;
+            const int LINEHEIGHT = 110;
+            const int WORDSPACE = 115;
+            const bool AUTOSCALEFONT = true;
+            const bool ENABLED = false;
+            const bool LOCKASPECT = true;
+            const string TILESIZE = "45x55";
+            const bool KEEPORIGINALSIZE = true;
+            const bool JUSTIFIEDTEXT = true;
+            const float ROTATION = 55;
+            const string BORDERCOLOR = "0xFF0000FF";
+            const string ELEMENTCOLOR = "0x00FF00FF";
+            const string OUTLINECOLOR = "0x0000FFFF";
+            const string FONT = "font";
+            const int VERTICALALIGN = 120;
+            const int HORIZONTALALIGN = 125;
+            const string TYPE = "theType";
+
+            // these can't be overriden
+            const string VARIABLE = "theVariable";
+            const string NAME = "newName";
+
+            const string BASE_VARIABLE = "theVariable";
+
+            _testElement.variable = BASE_VARIABLE;
+
+            var zElementString = _testDeck.TranslateString(
+                GetOverride("x", X) +
+                GetOverride("y", Y) +
+                GetOverride("width", WIDTH) +
+                GetOverride("height", HEIGHT) +
+                GetOverride("borderthickness", BORDERTHICKNESS) +
+                GetOverride("opacity", OPACITY) +
+                GetOverride("outlinethickness", OUTLINETHICKNESS) +
+                GetOverride("lineheight", LINEHEIGHT) +
+                GetOverride("wordspace", WORDSPACE) +
+                GetOverride("autoscalefont", AUTOSCALEFONT) +
+                GetOverride("enabled", ENABLED) +
+                GetOverride("lockaspect", LOCKASPECT) +
+                GetOverride("tilesize", TILESIZE) +
+                GetOverride("keeporiginalsize", KEEPORIGINALSIZE) +
+                GetOverride("justifiedtext", JUSTIFIEDTEXT) +
+                GetOverride("rotation", ROTATION) +
+                GetOverride("bordercolor", BORDERCOLOR) +
+                GetOverride("elementcolor", ELEMENTCOLOR) +
+                GetOverride("outlinecolor", OUTLINECOLOR) +
+                GetOverride("font", FONT) +
+                GetOverride("verticalalign", VERTICALALIGN) +
+                GetOverride("horizontalalign", HORIZONTALALIGN) +
+                GetOverride("type", TYPE) +
+                // un-overrid-able
+                GetOverride("name", NAME) +
+                GetOverride("variable", VARIABLE) +
+                $"'{RESULT}'"
+                , _testLine, _testElement, false);
+            Assert.NotNull(zElementString.OverrideFieldToValueDictionary);
+            _testDeck.GetVariableOverrideElement(_testElement, zElementString.OverrideFieldToValueDictionary);
+
+
+            Assert.AreEqual(X, _testElement.x);
+            Assert.AreEqual(Y, _testElement.y);
+            Assert.AreEqual(WIDTH, _testElement.width);
+            Assert.AreEqual(HEIGHT, _testElement.height);
+            Assert.AreEqual(BORDERTHICKNESS, _testElement.borderthickness);
+            Assert.AreEqual(OPACITY, _testElement.opacity);
+            Assert.AreEqual(OUTLINETHICKNESS, _testElement.outlinethickness);
+            Assert.AreEqual(LINEHEIGHT, _testElement.lineheight);
+            Assert.AreEqual(WORDSPACE, _testElement.wordspace);
+            Assert.AreEqual(AUTOSCALEFONT, _testElement.autoscalefont);
+            Assert.AreEqual(ENABLED, _testElement.enabled);
+            Assert.AreEqual(LOCKASPECT, _testElement.lockaspect);
+            Assert.AreEqual(TILESIZE, _testElement.tilesize);
+            Assert.AreEqual(KEEPORIGINALSIZE, _testElement.keeporiginalsize);
+            Assert.AreEqual(JUSTIFIEDTEXT, _testElement.justifiedtext);
+            Assert.AreEqual(ROTATION, _testElement.rotation);
+            Assert.AreEqual(BORDERCOLOR, _testElement.bordercolor);
+            Assert.AreEqual(ELEMENTCOLOR, _testElement.elementcolor);
+            Assert.AreEqual(OUTLINECOLOR, _testElement.outlinecolor);
+            Assert.AreEqual(FONT, _testElement.font);
+            Assert.AreEqual(VERTICALALIGN, _testElement.verticalalign);
+            Assert.AreEqual(HORIZONTALALIGN, _testElement.horizontalalign);
+            Assert.AreEqual(TYPE, _testElement.type);
+
+            // these should be unchanged
+            Assert.AreEqual(BASE_VARIABLE, _testElement.variable);
+            Assert.AreEqual(TEST_ELEMENT_NAME, _testElement.name);
+
+            Assert.AreEqual(RESULT, zElementString.String);
+        }
+
+        [Test]
+        public void ValidateDefinitionBasedEmptyOverride()
+        {
+            _testDeck.ProcessLinesPublic(
+                new List<List<string>>(),
+                new List<List<string>>(),
+                null);
+
+            const string RESULT = "RESULT";
+
+            const string BASE_VARIABLE = "theVariable";
+
+            _testElement.variable = BASE_VARIABLE;
+
+            var zElementString = _testDeck.TranslateString(
+                GetOverride("x", string.Empty) + 
+                $"'{RESULT}'"
+                , _testLine, _testElement, false);
+            Assert.True(0 == zElementString.OverrideFieldToValueDictionary.Count);
+            _testDeck.GetVariableOverrideElement(_testElement, zElementString.OverrideFieldToValueDictionary);
+
+            Assert.AreEqual(RESULT, zElementString.String);
+        }
+
+        private string GetOverride(string sOverrideField, object zOverrideValue)
+        {
+            return $"AddOverrideField('{sOverrideField}', '{zOverrideValue}');{Environment.NewLine}";
         }
         // graphic elements
     }

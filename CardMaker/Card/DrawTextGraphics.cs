@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,13 +33,15 @@ namespace CardMaker.Card
 {
     public class DrawTextGraphics : IDrawText
     {
-        public void DrawText(Graphics zGraphics, ProjectLayoutElement zElement, string sInput, Brush zBrush, Font zFont, Color colorFont)
+        public void DrawText(Graphics zGraphics, ProjectLayoutElement zElement, string sInput)
         {
+            var zFont = zElement.GetElementFont();
+            var colorFont = zElement.GetElementColor();
+
             if (null == zFont) // default to something!
             {
                 // font will show up in red if it's not yet set
-                zFont = DrawItem.DefaultFont;
-                zBrush = Brushes.Red;
+                zFont = FontLoader.DefaultFont;
             }
             var zFormat = new StringFormat
             {
@@ -47,10 +49,9 @@ namespace CardMaker.Card
                 Alignment = zElement.GetHorizontalAlignment()
             };
 
-            if (255 != zElement.opacity)
-            {
-                zBrush = new SolidBrush(Color.FromArgb(zElement.opacity, colorFont));
-            }
+            var zBrush = 255 == zElement.opacity
+                ? new SolidBrush(colorFont)
+                : new SolidBrush(Color.FromArgb(zElement.opacity, colorFont));
 
             if (zElement.autoscalefont)
             {
@@ -68,7 +69,7 @@ namespace CardMaker.Card
                         newSizeRatio = (float)zElement.width / (float)zSize.Width;
                     }
 
-                    var scaledFont = new Font(zFont.FontFamily, newSizeRatio * zFont.Size, zFont.Style);
+                    var scaledFont = FontLoader.GetFont(zFont.FontFamily, newSizeRatio * zFont.Size, zFont.Style);
                     //Support.IO.Logger.AddLogLine(scaledFont.Size + " was [" + zFont.Size + "]");
                     zFont = scaledFont;
 
@@ -84,13 +85,13 @@ namespace CardMaker.Card
                             {
                                 if (zFont.Size == 1)
                                     break;
-                                zFont = new Font(zFont.FontFamily, zFont.Size - 1, zFont.Style);
+                                zFont = FontLoader.GetFont(zFont.FontFamily, zFont.Size - 1, zFont.Style);
                                 if (bUpscaled)
                                     break;
                             }
                             else
                             {
-                                zFont = new Font(zFont.FontFamily, zFont.Size + 1, zFont.Style);
+                                zFont = FontLoader.GetFont(zFont.FontFamily, zFont.Size + 1, zFont.Style);
                                 bUpscaled = true;
                             }
                         }
@@ -137,7 +138,7 @@ namespace CardMaker.Card
                 try
                 {
                     zPath.AddString(sInput, zFont.FontFamily, (int)zFont.Style, fEmSize, new RectangleF(0, 0, zElement.width, zElement.height), zFormat);
-                    DrawItem.DrawOutline(zElement, zGraphics, zPath);
+                    CardRenderer.DrawPathOutline(zElement, zGraphics, zPath);
                 }
                 catch (Exception)
                 {

@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -342,6 +342,9 @@ namespace Support.UI
                     m_zForm.ClientSize = new Size(m_zForm.ClientSize.Width, nLargestHeight + 60);
                 }
             }
+
+            // add the panel controls after the client size has been set (adding them before displayed an odd issue with control anchor/size)
+		    FinalizeControls();
 
             if (0 < m_zPanel.Controls.Count)
             {

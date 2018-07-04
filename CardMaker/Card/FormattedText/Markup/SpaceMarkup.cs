@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,14 +48,14 @@ namespace CardMaker.Card.FormattedText.Markup
             Optional = bOptional;
         }
 
-        public override bool ProcessMarkup(ProjectLayoutElement zElement, FormattedTextData zData, FormattedTextProcessData zProcessData, Graphics zGraphics)
+        protected override bool ProcessMarkupHandler(ProjectLayoutElement zElement, FormattedTextData zData, FormattedTextProcessData zProcessData, Graphics zGraphics)
         {
             int nSpaces;
             if (!int.TryParse(m_sVariable, out nSpaces))
             {
                 return false;
             }
-            
+
             LineNumber = zProcessData.CurrentLine;
 
             float fWidth = (float)nSpaces * ((float)zProcessData.FontSpaceWidth + (float)zElement.wordspace);

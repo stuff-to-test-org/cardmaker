@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -111,7 +111,7 @@ namespace Support.IO
                 zStream.Close();
                 return true;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return false;
             }
@@ -125,21 +125,12 @@ namespace Support.IO
                 if (File.Exists(sFile))
                     File.Delete(sFile);
                 var zStream = File.OpenWrite(sFile);
-#warning ... unused?
-#if false
-                var zWriter = new XmlTextWriter(zStream, zEncoding)
-                {
-                    //Use indentation for readability.
-                    Formatting = Formatting.Indented,
-                    Indentation = 4
-                };
-#endif
 
                 zSerializer.Serialize(zStream, tObject);
                 zStream.Close();
                 return true;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return false;
             }

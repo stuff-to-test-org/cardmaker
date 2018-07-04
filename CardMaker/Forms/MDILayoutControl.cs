@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@ using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using CardMaker.Card;
 using CardMaker.Data;
 using CardMaker.Events.Args;
 using CardMaker.Events.Managers;
@@ -99,7 +100,7 @@ namespace CardMaker.Forms
 
         void Layout_Updated(object sender, LayoutEventArgs args)
         {
-            RefreshElementTypes();
+            RefreshElementInformation();
         }
 
         void Element_Selected(object sender, ElementEventArgs args)
@@ -457,7 +458,7 @@ namespace CardMaker.Forms
                         }
                         // re-init any translated string values (colors/fonts) 
                         // TODO: consider using an event for this kind of thing...
-                        zElementToValue.Key.InitializeCache();
+                        zElementToValue.Key.InitializeTranslatedFields();
                     }
 
                     CardMakerInstance.ProcessingUserAction = false;
@@ -513,7 +514,37 @@ namespace CardMaker.Forms
             }
         }
 
-#endregion
+        private void btnConfigureSize_Click(object sender, EventArgs e)
+        {
+            const string CARD_WIDTH = "cardWidth";
+            const string CARD_HEIGHT = "cardHeight";
+            var zQuery = new QueryPanelDialog("CardMaker Settings", 450, 250, false);
+            zQuery.SetIcon(CardMakerInstance.ApplicationIcon);
+            zQuery.SetMaxHeight(600);
+            zQuery.AddPullDownBox("Unit of Measure", Enum.GetNames(typeof(MeasurementUnit)), (int)CardMakerSettings.PrintPageMeasurementUnit, IniSettings.PrintPageMeasurementUnit);
+            zQuery.AddNumericBox("Width", 10, 0, int.MaxValue, 1, 2, CARD_WIDTH);
+            zQuery.AddNumericBox("Height", 10, 0, int.MaxValue, 1, 2, CARD_HEIGHT);
+            if (DialogResult.OK == zQuery.ShowDialog(this))
+            {
+                switch ((MeasurementUnit) zQuery.GetIndex(IniSettings.PrintPageMeasurementUnit))
+                {
+                    case MeasurementUnit.Inch:
+                        numericCardSetWidth.Value = zQuery.GetDecimal(CARD_WIDTH) * numericCardSetDPI.Value;
+                        numericCardSetHeight.Value = zQuery.GetDecimal(CARD_HEIGHT) * numericCardSetDPI.Value;
+                        break;
+                    case MeasurementUnit.Millimeter:
+                        numericCardSetWidth.Value = (decimal)(MeasurementUtil.GetInchesFromMillimeter((double)zQuery.GetDecimal(CARD_WIDTH)) * (double)numericCardSetDPI.Value);
+                        numericCardSetHeight.Value = (decimal)(MeasurementUtil.GetInchesFromMillimeter((double)zQuery.GetDecimal(CARD_HEIGHT)) * (double)numericCardSetDPI.Value);
+                        break;
+                    case MeasurementUnit.Centimeter:
+                        numericCardSetWidth.Value = (decimal)(MeasurementUtil.GetInchesFromCentimeter((double)zQuery.GetDecimal(CARD_WIDTH)) * (double)numericCardSetDPI.Value);
+                        numericCardSetHeight.Value = (decimal)(MeasurementUtil.GetInchesFromCentimeter((double)zQuery.GetDecimal(CARD_HEIGHT)) * (double)numericCardSetDPI.Value);
+                        break;
+                }
+            }
+        }
+
+        #endregion
 
         private ListViewItem CreateListViewItem(ProjectLayoutElement zElement)
         {
@@ -521,7 +552,7 @@ namespace CardMaker.Forms
             {
                 Tag = zElement
             };
-            UpdateListViewItemState(zLvi, zElement);
+            UpdateListViewItemText(zLvi, zElement);
             m_dictionaryItems.Add(zElement.name, zLvi);
             return zLvi;
         }
@@ -588,7 +619,7 @@ namespace CardMaker.Forms
                 {
                     zCardElement.lineheight = 14;
                     zCardElement.SetElementColor(Color.Black);
-                    zCardElement.SetElementFont(new Font("Arial", 12));
+                    zCardElement.SetElementFont(FontLoader.DefaultFont);
                 }
                 listElements.Add(zCardElement);
                 ListViewItem zLvi = CreateListViewItem(zCardElement);
@@ -751,7 +782,7 @@ namespace CardMaker.Forms
                     foreach (ProjectLayoutElement zElement in zLayout.Element)
                     {
                         ListViewItem zLvi = CreateListViewItem(zElement);
-                        UpdateListViewItemState(zLvi, zElement);
+                        UpdateListViewItemText(zLvi, zElement);
                         listViewElements.Items.Add(zLvi);
                     }
                     if (0 < listViewElements.Items.Count)
@@ -785,7 +816,7 @@ namespace CardMaker.Forms
             }
         }
 
-        private void UpdateListViewItemState(ListViewItem zLvi, ProjectLayoutElement zElement)
+        private void UpdateListViewItemText(ListViewItem zLvi, ProjectLayoutElement zElement)
         {
             //zLvi.BackColor = zElement.enabled ? Color.White : Color.Tomato;
             zLvi.SubItems[0].Text = zElement.enabled.ToString();
@@ -793,24 +824,16 @@ namespace CardMaker.Forms
 
         private void ToggleEnableState()
         {
-            if (0 < listViewElements.SelectedItems.Count)
-            {
-                foreach (ListViewItem zLvi in listViewElements.SelectedItems)
-                {
-                    var zElement = (ProjectLayoutElement)zLvi.Tag;
-                    zElement.enabled = !zElement.enabled;
-                    UpdateListViewItemState(zLvi, zElement);
-                }
-                LayoutManager.Instance.FireLayoutUpdatedEvent(true);
-            }
+            ElementManager.Instance.ProcessSelectedElementsEnableToggle();
         }
 
-        private void RefreshElementTypes()
+        private void RefreshElementInformation()
         {
             foreach (var zLvi in m_dictionaryItems.Values)
             {
                 var zElement = (ProjectLayoutElement) zLvi.Tag;
                 zLvi.SubItems[2].Text = zElement.type;
+                UpdateListViewItemText(zLvi, zElement);
             }
         }
 

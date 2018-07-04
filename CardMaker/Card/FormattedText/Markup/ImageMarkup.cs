@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,12 +35,13 @@ namespace CardMaker.Card.FormattedText.Markup
         private string m_sImageFile;
         private float m_fXOffset;
         private float m_fYOffset;
+        private Bitmap m_zBmp = null;
 
         public override bool Aligns => true;
 
         public ImageMarkup(string sVariable) : base(sVariable){}
 
-        public override bool ProcessMarkup(ProjectLayoutElement zElement, FormattedTextData zData, FormattedTextProcessData zProcessData, Graphics zGraphics)
+        protected override bool ProcessMarkupHandler(ProjectLayoutElement zElement, FormattedTextData zData, FormattedTextProcessData zProcessData, Graphics zGraphics)
         {
             var arrayComponents = m_sVariable.Split(new char[] { ';' });
             if (1 > arrayComponents.Length)
@@ -51,9 +52,11 @@ namespace CardMaker.Card.FormattedText.Markup
 
             m_sImageFile = arrayComponents[0];
 
-            var zBmp = DrawItem.LoadImageFromCache(m_sImageFile);
+            m_zBmp = ImageCache.LoadCustomImageFromCache(m_sImageFile, zElement);
 
-            if (null == zBmp)
+            if (null == m_zBmp 
+                || m_zBmp.Width == 0 
+                || m_zBmp.Height == 0)
             {
                 return false;
             }
@@ -64,17 +67,18 @@ namespace CardMaker.Card.FormattedText.Markup
             switch (arrayComponents.Length)
             {
                 case 1: // <img=[filename]>
-                    TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, zBmp.Width, zBmp.Height);
+                    fLineHeightPercent = 1.0f;
+                    TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, m_zBmp.Width, m_zBmp.Height);
                     break;
                 case 2: // <img=[filename];[percent]>
                     ParseUtil.ParseFloat(arrayComponents[1], out fLineHeightPercent);
-                    TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, zBmp.Width, zBmp.Height);
+                    TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, m_zBmp.Width, m_zBmp.Height);
                     break;
                 case 3: // <img=[filename];[xoffset];[yoffset]>
                     if (ParseUtil.ParseFloat(arrayComponents[1], out m_fXOffset) &&
                         ParseUtil.ParseFloat(arrayComponents[2], out m_fYOffset))
                     {
-                        TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, zBmp.Width, zBmp.Height);
+                        TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, m_zBmp.Width, m_zBmp.Height);
                     }
                     break;
                 case 4: // <img=[filename];[percent];[xoffset];[yoffset]>
@@ -82,7 +86,7 @@ namespace CardMaker.Card.FormattedText.Markup
                     if (ParseUtil.ParseFloat(arrayComponents[2], out m_fXOffset) &&
                         ParseUtil.ParseFloat(arrayComponents[3], out m_fYOffset))
                     {
-                        TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, zBmp.Width, zBmp.Height);
+                        TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, m_zBmp.Width, m_zBmp.Height);
                     }
                     break;
                 case 5: // <img=[filename];[xoffset];[yoffset];[width];[height]>
@@ -108,11 +112,12 @@ namespace CardMaker.Card.FormattedText.Markup
             m_fXOffset += zProcessData.CurrentXOffset;
             m_fYOffset += zProcessData.CurrentYOffset;
 
+            var fAspectRatio = (float)m_zBmp.Width / (float)m_zBmp.Height;
+
             if (-1f != fLineHeightPercent)
             {
-                var aspectRatio = TargetRect.Width / TargetRect.Height;
                 var fNewHeight = fLineHeightPercent * (zProcessData.FontHeight == 0f ? 1f : (float)zProcessData.FontHeight);
-                var fNewWidth = fNewHeight * aspectRatio;
+                var fNewWidth = fNewHeight * fAspectRatio;
                 TargetRect = new RectangleF(zProcessData.CurrentX, zProcessData.CurrentY, fNewWidth, fNewHeight);
             }
 
@@ -126,7 +131,8 @@ namespace CardMaker.Card.FormattedText.Markup
             // cap off excessively wide images
             if (TargetRect.Width + TargetRect.X > zElement.width)
             {
-                TargetRect = new RectangleF(TargetRect.X, TargetRect.Y, zElement.width, TargetRect.Height);
+                var fNewHeight = zElement.width / fAspectRatio;
+                TargetRect = new RectangleF(TargetRect.X, TargetRect.Y, zElement.width, fNewHeight);
             }
 
             // Center the image on the line based on font height or line height (todo figure out which...)
@@ -157,9 +163,11 @@ namespace CardMaker.Card.FormattedText.Markup
                 zGraphics.DrawRectangle(Pens.Green, TargetRect.X + m_fXOffset, TargetRect.Y + m_fYOffset, TargetRect.Width, TargetRect.Height);
             }
 
-            // already null checked in the ProcessMarkup
-            var zBmp = DrawItem.LoadImageFromCache(m_sImageFile);
-            zGraphics.DrawImage(zBmp, TargetRect.X + m_fXOffset, TargetRect.Y + m_fYOffset, TargetRect.Width, TargetRect.Height);
+            if (null != m_zBmp)
+            {
+                zGraphics.DrawImage(m_zBmp, TargetRect.X + m_fXOffset, TargetRect.Y + m_fYOffset, TargetRect.Width,
+                    TargetRect.Height);
+            }
 
             if (CardMakerInstance.DrawFormattedTextBorder)
             {

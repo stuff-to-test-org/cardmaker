@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using CardMaker.XML;
@@ -34,16 +35,22 @@ using Support.UI;
 
 namespace CardMaker.Card
 {
-    public class DrawTextRenderer : IDrawText
+    public class DrawTextTextRenderer : IDrawText
     {
-        public void DrawText(Graphics zGraphics, ProjectLayoutElement zElement, string sInput, Brush zBrush, Font zFont, Color colorFont)
+        public void DrawText(Graphics zGraphics, ProjectLayoutElement zElement, string sInput)
         {
+            var zFont = zElement.GetElementFont();
+            var colorFont = zElement.GetElementColor();
+
             if (null == zFont) // default to something!
             {
                 // font will show up in red if it's not yet set
-                zFont = DrawItem.DefaultFont;
-                zBrush = Brushes.Red;
+                zFont = FontLoader.DefaultFont;
             }
+
+            var zBrush = 255 == zElement.opacity
+                ? new SolidBrush(colorFont)
+                : new SolidBrush(Color.FromArgb(zElement.opacity, colorFont));
 
             TextFormatFlags zFormatFlags =
                 TextFormatFlags.WordBreak
@@ -94,8 +101,9 @@ namespace CardMaker.Card
                         newSizeRatio = (float)zElement.width / (float)zSize.Width;
                     }
 
+                    //var scaledFont = new Font(zFont.FontFamily, newSizeRatio * zFont.Size, zFont.Style);
                     var scaledFont = new Font(zFont.FontFamily, newSizeRatio * zFont.Size, zFont.Style);
-                    Logger.AddLogLine(scaledFont.Size + " was [" + zFont.Size + "]");
+                    //Logger.AddLogLine(scaledFont.Size + " was [" + zFont.Size + "]");
                     zFont = scaledFont;
 
 #if true            // the preprocessing above will get the font size close but not perfect, the slow code below further refines the size
@@ -114,7 +122,7 @@ namespace CardMaker.Card
                                     break;
                                 }
                                 zFont = new Font(zFont.FontFamily, zFont.Size - FONT_SCALE_ADJUST, zFont.Style);
-                                Logger.AddLogLine("ADJ A [" + zFont.Size + "]");
+                                //Logger.AddLogLine("ADJ A [" + zFont.Size + "]");
                                 if (bUpscaled)
                                 {
                                     break;
@@ -123,7 +131,7 @@ namespace CardMaker.Card
                             else
                             {
                                 zFont = new Font(zFont.FontFamily, zFont.Size + FONT_SCALE_ADJUST, zFont.Style);
-                                Logger.AddLogLine("ADJ B [" + zFont.Size + "]");
+                                //Logger.AddLogLine("ADJ B [" + zFont.Size + "]");
                                 bUpscaled = true;
                             }
                         }
@@ -147,7 +155,7 @@ namespace CardMaker.Card
             switch (zFont.Unit)
             {
                 case GraphicsUnit.Point:
-                    fEmSize = zGraphics.DpiY*(zFont.Size/72f);
+                    fEmSize = zGraphics.DpiY * (zFont.Size / 72f);
                     break;
                 default:
                     Logger.AddLogLine("This font is using the Unit: {0} (not currently supported)".FormatString(zFont.Unit.ToString()));
@@ -160,12 +168,15 @@ namespace CardMaker.Card
                 {
                     try
                     {
+                        // https://stackoverflow.com/questions/849531/textrenderer-drawtext-in-bitmap-vs-onpaintbackground/1578056#1578056
                         if (null != zOpacityBitmap)
                         {
+                            zFont = new Font("SkyScrappers Regular", zFont.Size);
+
                             // TODO: https://stackoverflow.com/questions/18838037/drawing-text-to-a-bitmap-with-textrenderer
 
 #warning too bad this makes the font look terrible
-#if true
+#if false
                             var image = new Bitmap(zElement.width, zElement.height, PixelFormat.Format32bppArgb);
 
                             // create memory buffer from desktop handle that supports alpha channel
@@ -196,12 +207,27 @@ namespace CardMaker.Card
                                 DeleteObject(dib);
                                 DeleteDC(memoryHdc);
                             }
+                            zGraphics.DrawImageUnscaled(image, 0, 0);
 
-
+#else
+#if false
+                            using (Bitmap buffer = new Bitmap(zElement.width, zElement.height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+                            {
+                                using (Graphics graphics = Graphics.FromImage(buffer))
+                                {
+                                    graphics.FillRectangle(Brushes.Transparent, 0, 0, zElement.width, zElement.height);
+                                    // Produces the result below
+                                    //graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                                    // Produces clean text, but I'd really like ClearType!
+                                    graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                                    TextRenderer.DrawText(graphics, sLine, zFont, new Rectangle(0, 0, zElement.width, zElement.height), colorFont, zFormatFlags);
+                                }
+                                zGraphics.DrawImageUnscaled(buffer, 0, 0);
+                            }
 #else
                             var zGraphicsTemp = Graphics.FromImage(zOpacityBitmap);
                             zGraphicsTemp.SmoothingMode = SmoothingMode.AntiAlias;
-                            zGraphicsTemp.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                            zGraphicsTemp.TextRenderingHint = TextRenderingHint.AntiAlias;
 
                             TextRenderer.DrawText(zGraphicsTemp, sLine, zFont, new Rectangle(0, 0, zElement.width, zElement.height), colorFont, zFormatFlags);
 
@@ -211,16 +237,34 @@ namespace CardMaker.Card
                             };
                             var zAttrib = new ImageAttributes();
                             zAttrib.SetColorMatrix(zColor);
-                            var zBitmap = new Bitmap(zOpacityBitmap); // target image
+                            var zBitmap = new Bitmap(zOpacityBitmap.Width, zOpacityBitmap.Height); // target image
                             var zGraphicsX = Graphics.FromImage(zBitmap);
-                            zGraphicsTemp.SmoothingMode = SmoothingMode.AntiAlias;
-                            zGraphicsTemp.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
                             // draw the source image into the destination with the desired opacity
                             zGraphicsX.DrawImage(zOpacityBitmap, new Rectangle(0, 0, zBitmap.Width, zBitmap.Height), 0, 0, zBitmap.Width, zBitmap.Height, GraphicsUnit.Pixel,
                                 zAttrib);
+                            /**
+                             * 
+                             *             var zImageAttributes = new ImageAttributes();
+            if (255 != zElement.opacity)
+            {
+                var zColor = new ColorMatrix
+                {
+                    Matrix33 = (float)zElement.opacity / 255.0f
+                };
+                zImageAttributes.SetColorMatrix(zColor);
+            }
+
+            zDestinationBitmap = new Bitmap(nTargetWidth, nTargetHeight); // target image
+            var zGraphics = Graphics.FromImage(zDestinationBitmap);
+            // draw the source image into the destination with the desired opacity
+            zGraphics.DrawImage(zSourceBitmap, new Rectangle(0, 0, nTargetWidth, nTargetHeight), 0, 0, zSourceBitmap.Width, zSourceBitmap.Height, GraphicsUnit.Pixel,
+                zImageAttributes);
+                             * */
+
+
+                            zGraphics.DrawImageUnscaled(zBitmap, 0, 0);
 #endif
-                            // offset is already applied
-                            zGraphics.DrawImageUnscaled(image, 0, 0);
+#endif
                         }
                         else
                         {
@@ -250,7 +294,7 @@ namespace CardMaker.Card
                         };
 
                         zPath.AddString(sLine, zFont.FontFamily, (int)zFont.Style, fEmSize, new RectangleF(0, nLineOffset, zElement.width, zElement.height), zFormat);
-                        DrawItem.DrawOutline(zElement, zGraphics, zPath);
+                        CardRenderer.DrawPathOutline(zElement, zGraphics, zPath);
                     }
                     catch (Exception)
                     {

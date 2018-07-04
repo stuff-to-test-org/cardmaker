@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,8 @@ namespace Support.UI
         {
             m_bRequireSheetSelect = bRequireSheetSelect;
             InitializeComponent();
+            listViewSheets.Visible = m_bRequireSheetSelect;
+            lblSheets.Visible = m_bRequireSheetSelect;
             m_zSpreadsheetsService = GoogleSpreadsheet.GetSpreadsheetsService(sAppName, sClientId, sGoogleAccessToken);
         }
 
@@ -116,6 +118,11 @@ namespace Support.UI
 
         private void listViewSpreadsheets_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (!m_bRequireSheetSelect)
+            {
+                return;
+            }
+
             if (listViewSpreadsheets.SelectedItems.Count == 1)
             {
                 new Thread(() =>

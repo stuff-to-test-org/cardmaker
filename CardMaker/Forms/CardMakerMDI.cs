@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,6 @@
 // SOFTWARE.
 ////////////////////////////////////////////////////////////////////////////////
 
-#define UNSTABLE
-
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -41,6 +39,7 @@ using CardMaker.Card.Translation;
 using CardMaker.Data;
 using CardMaker.Events.Args;
 using CardMaker.Events.Managers;
+using CardMaker.Forms.Dialogs;
 using CardMaker.XML;
 using PdfSharp;
 using Support.IO;
@@ -64,10 +63,8 @@ namespace CardMaker.Forms
 
             UserAction.OnClearUserActions = () => Logger.AddLogLine("Cleared Undo/Redo.");
 
-            m_sBaseTitle = "Card Maker Beta " + Application.ProductVersion;
-#if UNSTABLE
-            m_sBaseTitle += "[UNSTABLE] V.A18";
-#endif
+            m_sBaseTitle = "Card Maker " + Application.ProductVersion + CardMakerBuild.GetBuildSuffix();
+
             m_sFileOpenFilter = "CMP files (*.cmp)|*.cmp|All files (*.*)|*.*";
 
             Icon = Properties.Resources.CardMakerIcon;
@@ -80,6 +77,9 @@ namespace CardMaker.Forms
 
         private void CardMakerMDI_Load(object sender, EventArgs e)
         {
+            // logger should be available before the other dialogs
+            var zLoggerForm = SetupMDIForm(new MDILogger(), true);
+
             // always before any dialogs
             ShapeManager.Init();
 
@@ -99,7 +99,6 @@ namespace CardMaker.Forms
             var zCanvasForm = SetupMDIForm(new MDICanvas(), true);
             var zElementForm = SetupMDIForm(new MDIElementControl(), true);
             var zLayoutForm = SetupMDIForm(new MDILayoutControl(), true);
-            var zLoggerForm = SetupMDIForm(new MDILogger(), true);
             var zProjectForm = SetupMDIForm(new MDIProject(), true);
             SetupMDIForm(new MDIIssues(), false);
             SetupMDIForm(new MDIDefines(), false);
@@ -182,16 +181,16 @@ namespace CardMaker.Forms
                 zLoggerForm.Size = new Size(403, 117);
                 zLoggerForm.Location = new Point(789, 571);
 #else
-                zCanvasForm.Size = new Size(457, 300);
+                zCanvasForm.Size = new Size(557, 300);
                 zCanvasForm.Location = new Point(209, 5);
-                zElementForm.Size = new Size(579, 290);
+                zElementForm.Size = new Size(756, 339);
                 zElementForm.Location = new Point(3, 310);
                 zLayoutForm.Size = new Size(300, 352);
-                zLayoutForm.Location = new Point(670, 4);
+                zLayoutForm.Location = new Point(768, 4);
                 zProjectForm.Size = new Size(200, 266);
                 zProjectForm.Location = new Point(6, 10);
-                zLoggerForm.Size = new Size(403, 117);
-                zLoggerForm.Location = new Point(667, 531);
+                zLoggerForm.Size = new Size(337, 291);
+                zLoggerForm.Location = new Point(765, 365);
 #endif
             }
 
@@ -220,11 +219,16 @@ namespace CardMaker.Forms
 
             // load the specified project from the command line
             if (!string.IsNullOrEmpty(CardMakerInstance.CommandLineProjectFile))
+            {
                 InitOpen(CardMakerInstance.CommandLineProjectFile);
+            }
 
-#if UNSTABLE && !DEBUG
-            MessageBox.Show(
-                "This is an UNSTABLE build of CardMaker. Please make backups of any projects before opening them with this version.");
+#if !DEBUG
+            if(CardMakerBuild.IsUnstable())
+            {
+                MessageBox.Show(
+                    "This is an UNSTABLE build of CardMaker. Please make backups of any projects before opening them with this version.");
+            }
 #endif
         }
 
@@ -274,16 +278,16 @@ namespace CardMaker.Forms
         {
             CardMakerSettings.IniManager.AutoFlush = false;
             CardMakerSettings.IniManager.SetValue(Name, IniManager.GetFormSettings(this));
-            foreach (Form zForm in MdiChildren)
+            foreach (var zForm in MdiChildren)
             {
                 CardMakerSettings.IniManager.SetValue(zForm.Name, IniManager.GetFormSettings(zForm));
                 CardMakerSettings.IniManager.SetValue(zForm.Name + CardMakerConstants.VISIBLE_SETTING, zForm.Visible.ToString());
             }
             var zBuilder = new StringBuilder();
             var dictionaryFilenames = new Dictionary<string, object>();
-            foreach (string sFile in m_listRecentFiles)
+            foreach (var sFile in m_listRecentFiles)
             {
-                string sLowerFile = sFile.ToLower();
+                var sLowerFile = sFile.ToLower();
                 if (dictionaryFilenames.ContainsKey(sLowerFile))
                     continue;
                 dictionaryFilenames.Add(sLowerFile, null);
@@ -323,7 +327,7 @@ namespace CardMaker.Forms
         private void recentProject_Click(object sender, EventArgs e)
         {
             var zItem = (ToolStripItem)sender;
-            string sFile = zItem.Text;
+            var sFile = zItem.Text;
             InitOpen(sFile);
         }
 
@@ -385,16 +389,18 @@ namespace CardMaker.Forms
             zQuery.AddVerticalSpace(20);
             zQuery.AddLabel("---- PDF Export Settings ----", 16);
 #endif
-            zQuery.AddNumericBox("Page Width (inches)", CardMakerSettings.PrintPageWidth, 1, 1024, 1, 2, IniSettings.PrintPageWidth);
-            zQuery.AddNumericBox("Page Height (inches)", CardMakerSettings.PrintPageHeight, 1, 1024, 1, 2, IniSettings.PrintPageHeight);
-            zQuery.AddNumericBox("Page Horizontal Margin (inches)", CardMakerSettings.PrintPageHorizontalMargin, 0, 1024, 0.01m, 2, IniSettings.PrintPageHorizontalMargin);
-            zQuery.AddNumericBox("Page Vertical Margin (inches)", CardMakerSettings.PrintPageVerticalMargin, 0, 1024, 0.01m, 2, IniSettings.PrintPageVerticalMargin);
+            zQuery.AddPullDownBox("Page Measurement Unit", Enum.GetNames(typeof(MeasurementUnit)), (int) CardMakerSettings.PrintPageMeasurementUnit, IniSettings.PrintPageMeasurementUnit);
+            zQuery.AddNumericBox("Page Width", CardMakerSettings.PrintPageWidth, 1, 1024, 1, 2, IniSettings.PrintPageWidth);
+            zQuery.AddNumericBox("Page Height", CardMakerSettings.PrintPageHeight, 1, 1024, 1, 2, IniSettings.PrintPageHeight);
+            zQuery.AddNumericBox("Page Horizontal Margin", CardMakerSettings.PrintPageHorizontalMargin, 0, 1024, 0.01m, 2, IniSettings.PrintPageHorizontalMargin);
+            zQuery.AddNumericBox("Page Vertical Margin", CardMakerSettings.PrintPageVerticalMargin, 0, 1024, 0.01m, 2, IniSettings.PrintPageVerticalMargin);
             zQuery.AddCheckBox("Auto-Center Layouts on Page", CardMakerSettings.PrintAutoHorizontalCenter, IniSettings.PrintAutoCenterLayout);
             zQuery.AddCheckBox("Print Layouts On New Page", CardMakerSettings.PrintLayoutsOnNewPage, IniSettings.PrintLayoutsOnNewPage);
             zQuery.SetIcon(Icon);
 
             if (DialogResult.OK == zQuery.ShowDialog(this))
             {
+                CardMakerSettings.PrintPageMeasurementUnit = (MeasurementUnit)zQuery.GetIndex(IniSettings.PrintPageMeasurementUnit);
                 CardMakerSettings.PrintPageWidth = zQuery.GetDecimal(IniSettings.PrintPageWidth);
                 CardMakerSettings.PrintPageHeight = zQuery.GetDecimal(IniSettings.PrintPageHeight);
                 CardMakerSettings.PrintPageHorizontalMargin = zQuery.GetDecimal(IniSettings.PrintPageHorizontalMargin);
@@ -467,9 +473,13 @@ namespace CardMaker.Forms
 
         private void exportImagesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            ExportImages(true);
+            ExportImages(FileCardExporterFactory.BuildFileCardExporter(true));
         }
 
+        private void projectSettingsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ProjectSettingsDialog.ShowProjectSettings(this);
+        }
 
         private void updateIssuesToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -484,7 +494,7 @@ namespace CardMaker.Forms
 
         private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            MessageBox.Show(this, "Card Maker Beta" +
+            MessageBox.Show(this, "Card Maker " +
                 Environment.NewLine + Environment.NewLine +
                 Application.ProductVersion +
 #if MONO_BUILD
@@ -518,9 +528,7 @@ namespace CardMaker.Forms
 
         private void clearCacheToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            DrawItem.DumpImages();
-            DrawItem.DumpOpacityImages();
-            LayoutManager.Instance.FireLayoutRenderUpdatedEvent();
+            LayoutManager.Instance.ClearImageCache();
         }
 
         private void illegalFilenameCharacterReplacementToolStripMenuItem_Click(object sender, EventArgs e)
@@ -569,7 +577,8 @@ namespace CardMaker.Forms
             var zQuery = new QueryPanelDialog("Remove Layout Templates", 450, false);
             zQuery.SetIcon(Properties.Resources.CardMakerIcon);
             zQuery.AddLabel("Select the templates to remove.", 20);
-            zQuery.AddListBox("Templates", listItems.ToArray(), null, true, 120, TEMPLATE);
+            zQuery.AddListBox("Templates", listItems.ToArray(), null, true, 240, TEMPLATE)
+                .Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             zQuery.AllowResize();
             if (DialogResult.OK == zQuery.ShowDialog(this))
             {
@@ -610,7 +619,7 @@ namespace CardMaker.Forms
 
         private void updateGoogleCredentialsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            UpdateGoogleAuth();
+            GoogleAuthManager.UpdateGoogleAuth(this);
         }
 
         private void clearGoogleCacheToolStripMenuItem_Click(object sender, EventArgs e)
@@ -630,7 +639,13 @@ namespace CardMaker.Forms
             switch (args.ExportType)
             {
                 case ExportType.Image:
-                    ExportImages(false);
+                    ExportImages(FileCardExporterFactory.BuildFileCardExporter(false));
+                    break;
+                case ExportType.SingleImage:
+                    ExportImages(FileCardExporterFactory.BuildImageExporter());
+                    break;
+                case ExportType.SingleImageClipboard:
+                    ExportImages(FileCardExporterFactory.BuildImageClipboardExporter());
                     break;
                 case ExportType.PDFSharp:
                     ExportViaPDFSharp(false);
@@ -640,7 +655,7 @@ namespace CardMaker.Forms
 
         private void GoogleAuthUpdate_Requested(object sender, GoogleAuthEventArgs args)
         {
-            UpdateGoogleAuth(args.SuccessAction, args.CancelAction);
+            GoogleAuthManager.UpdateGoogleAuth(this, args.SuccessAction, args.CancelAction);
         }
 
 
@@ -705,7 +720,7 @@ namespace CardMaker.Forms
 
                 if (bHasExternalReference)
                 {
-                    UpdateGoogleAuth(null, () =>
+                    GoogleAuthManager.UpdateGoogleAuth(this, null, () =>
                     {
                         MessageBox.Show(this, "You will be unable to view the layouts for any references that are Google Spreadsheets.", "Reference Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     });
@@ -788,9 +803,8 @@ namespace CardMaker.Forms
             }
         }
 
-        private void ExportImages(bool bExportAllLayouts)
+        private void ExportImages(ICardExporter zFileCardExporter)
         {
-            ICardExporter zFileCardExporter = FileCardExporterFactory.BuildFileCardExporter(bExportAllLayouts);
             if (null == zFileCardExporter)
             {
                 return;
@@ -809,25 +823,7 @@ namespace CardMaker.Forms
 #endif
         }
 
-        private void UpdateGoogleAuth(Action zSuccessAction = null, Action zCancelAction = null)
-        {
-            var zDialog = new GoogleCredentialsDialog()
-            {
-                Icon = Icon
-            };
-            DialogResult zResult = zDialog.ShowDialog(this);
-            switch (zResult)
-            {
-                case DialogResult.OK:
-                    CardMakerInstance.GoogleAccessToken = zDialog.GoogleAccessToken;
-                    Logger.AddLogLine("Updated Google Credentials");
-                    zSuccessAction?.Invoke();
-                    break;
-                default:
-                    zCancelAction?.Invoke();
-                    break;
-            }
-        }
+
 
         private void RestoreReplacementChars()
         {

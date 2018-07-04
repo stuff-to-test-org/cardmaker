@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -72,16 +72,14 @@ namespace CardMaker.Card.Export
         /// <param name="nWidth"></param>
         /// <param name="nHeight"></param>
         /// <param name="zGraphics"></param>
-        protected virtual void UpdateBufferBitmap(int nWidth, int nHeight, Graphics zGraphics = null)
+        protected virtual void UpdateBufferBitmap(int nWidth, int nHeight)
         {
             if (null == m_zExportCardBuffer ||
                 nWidth != m_zExportCardBuffer.Width ||
                 nHeight != m_zExportCardBuffer.Height)
             {
                 m_zExportCardBuffer?.Dispose();
-                m_zExportCardBuffer = null == zGraphics
-                    ? new Bitmap(nWidth, nHeight)
-                    : new Bitmap(nWidth, nHeight, zGraphics);
+                m_zExportCardBuffer = new Bitmap(nWidth, nHeight);
             }
         }
 

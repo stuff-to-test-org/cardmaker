@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,14 +34,16 @@ using CardMaker.Data;
 using CardMaker.Events.Args;
 using CardMaker.Events.Managers;
 using CardMaker.XML;
+using Support.IO;
 using Support.UI;
 
 namespace CardMaker.Forms
 {
     public partial class MDIElementControl : Form
     {
-#warning - this should be in a central spot... not in some random dialog
-        private readonly Dictionary<string, ElementType> m_dictionaryElementTypes = new Dictionary<string, ElementType>();
+        private const string SAMPLE_TEXT = "ABCDEF abcdef 1234567890";
+        private const float NORMAL_FONT_SIZE = 11f;
+        private const float PREVIEW_FONT_SIZE = 14f;
 
         // mapping controls directly to special functions when a given control is adjusted
         private readonly Dictionary<Control, Action<ProjectLayoutElement>> m_dictionaryControlActions = new Dictionary<Control, Action<ProjectLayoutElement>>();
@@ -54,6 +56,16 @@ namespace CardMaker.Forms
 
         private readonly ContextMenuStrip m_zContextMenu;
 
+        private readonly Font m_zDefaultPreviewFont =
+            FontLoader.GetFont(FontLoader.DefaultFont.FontFamily, PREVIEW_FONT_SIZE, FontStyle.Regular);
+
+        private readonly Font m_zDefaultFont =
+            FontLoader.GetFont(FontLoader.DefaultFont.FontFamily, NORMAL_FONT_SIZE, FontStyle.Regular);
+
+        private Dictionary<string, Font> m_zFontDictionary;
+
+        // used to toggle what is drawn in the combo (font name + (optional) sample)
+        private bool m_bFontComboOpen = false;
 
         private bool m_bFireElementChangeEvents = true;
         private bool m_bFireFontChangeEvents = true;
@@ -66,13 +78,22 @@ namespace CardMaker.Forms
             btnElementFontColor.Tag = panelFontColor;
             btnElementShapeColor.Tag = panelShapeColor;
             btnElementOutlineColor.Tag = panelOutlineColor;
+            btnElementBackgroundColor.Tag = panelBackgroundColor;
 
             // setup the font related items
-            var fonts = new InstalledFontCollection();
-            foreach (FontFamily zFontFamily in fonts.Families)
+            var arrayFontFamilies = GetFontFamilies();
+            m_zFontDictionary = new Dictionary<string, Font>(arrayFontFamilies.Length);
+            foreach (var zFontFamily in arrayFontFamilies)
             {
+                if (m_zFontDictionary.ContainsKey(zFontFamily.Name))
+                {
+                    Logger.AddLogLine("Duplicate font family (ignoring): " + zFontFamily.Name);
+                    continue;
+                }
+
                 m_listFontFamilies.Add(zFontFamily);
                 comboFontName.Items.Add(zFontFamily.Name);
+                m_zFontDictionary[zFontFamily.Name] = FontLoader.GetFont(zFontFamily, PREVIEW_FONT_SIZE, FontStyle.Regular);
             }
 
             // configure all event handling actions
@@ -90,6 +111,7 @@ namespace CardMaker.Forms
             LayoutManager.Instance.DeckIndexChanged += DeckIndex_Changed;
             ElementManager.Instance.ElementSelected += Element_Selected;
             ElementManager.Instance.ElementBoundsUpdated += ElementBounds_Updated;
+            LayoutManager.Instance.LayoutUpdated += (sender, args) => HandleEnableStates();
         }
 
         #region overrides
@@ -203,6 +225,10 @@ namespace CardMaker.Forms
                 {
                     colorUndo = zElement.GetElementColor();
                 }
+                if (btnClicked == btnElementBackgroundColor)
+                {
+                    colorUndo = zElement.GetElementBackgroundColor();
+                }
 
                 listActions.Add(bRedo =>
                     {
@@ -213,6 +239,48 @@ namespace CardMaker.Forms
                         SetColorValue(btnClicked, bRedo ? colorRedo : colorUndo, zElementToChange);
                         UpdatePanelColors(zElementToChange);
                     });
+            }
+
+            Action<bool> actionChangeColor = bRedo =>
+            {
+                listActions.ForEach(action => action(bRedo));
+                LayoutManager.Instance.FireLayoutUpdatedEvent(true);
+            };
+            UserAction.PushAction(actionChangeColor);
+
+            // perform the action as a redo now
+            actionChangeColor(true);
+        }
+
+        private void btnNullBackgroundColor_Click(object sender, EventArgs e)
+        {
+            // TODO: this and the above method are 80% the same...
+            var listSelectedElements = ElementManager.Instance.SelectedElements;
+            if (null == listSelectedElements)
+            {
+                MessageBox.Show(this, "Please select at least one enabled Element.");
+                return;
+            }
+
+            var btnClicked = (Button)sender;
+            var colorRedo = CardMakerConstants.NoColor;
+
+            var listActions = UserAction.CreateActionList();
+
+            foreach (var zElement in listSelectedElements)
+            {
+                var zElementToChange = zElement;
+                var colorUndo = zElementToChange.GetElementBackgroundColor();
+
+                listActions.Add(bRedo =>
+                {
+                    if (null != LayoutManager.Instance.ActiveDeck)
+                    {
+                        LayoutManager.Instance.ActiveDeck.ResetMarkupCache(zElementToChange.name);
+                    }
+                    SetColorValue(btnClicked, bRedo ? colorRedo : colorUndo, zElementToChange);
+                    UpdatePanelColors(zElementToChange);
+                });
             }
 
             Action<bool> actionChangeColor = bRedo =>
@@ -279,11 +347,10 @@ namespace CardMaker.Forms
 
             comboShapeType.SelectedIndex = 0;
 
-            for (int nIdx = 0; nIdx < (int)ElementType.End; nIdx++)
+            for (var nIdx = 0; nIdx < (int)ElementType.End; nIdx++)
             {
                 var sType = ((ElementType)nIdx).ToString();
                 comboElementType.Items.Add(sType);
-                m_dictionaryElementTypes.Add(sType, (ElementType)nIdx);
             }
 
             tabControl.Visible = false;
@@ -332,11 +399,12 @@ namespace CardMaker.Forms
                                 (checkBoxStrikeout.Checked ? FontStyle.Strikeout : FontStyle.Regular) |
                                 (checkBoxUnderline.Checked ? FontStyle.Underline : FontStyle.Regular);
 
-                            var zFont = new Font(m_listFontFamilies[comboFontName.SelectedIndex], (int)numericFontSize.Value, eFontStyle);
+                            // even if this font load fails due to style it should convert over to the valid one
+                            var zFont = FontLoader.GetFont(m_listFontFamilies[comboFontName.SelectedIndex], (int)numericFontSize.Value, eFontStyle);
 
                             var fontRedo = zFont;
                             var fontUndo = zElementToChange.GetElementFont();
-                            fontUndo = fontUndo ?? DrawItem.DefaultFont;
+                            fontUndo = fontUndo ?? FontLoader.DefaultFont;
 
                             listActions.Add(bRedo =>
                             {
@@ -385,6 +453,48 @@ namespace CardMaker.Forms
             HandleFontSettingChange(sender, e);
         }
 
+        private void comboFontName_DropDownClosed(object sender, EventArgs e)
+        {
+            m_bFontComboOpen = false;
+            comboFontName.Invalidate();
+        }
+
+        private void comboFontName_DropDown(object sender, EventArgs e)
+        {
+            m_bFontComboOpen = true;
+        }
+
+        private void comboFontName_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            e.DrawBackground();
+
+            var sFontName = ((ComboBox)sender).Items[e.Index].ToString();
+
+            // the font color needs to constrast from the background... (critical if selected)
+            var zFontBrush = ((e.State & DrawItemState.Selected) == 0)
+                ? new SolidBrush(SystemColors.WindowText) 
+                : new SolidBrush(SystemColors.Window);
+
+            var zGraphics = e.Graphics;
+
+            var zFontNameFont = m_bFontComboOpen ? m_zDefaultPreviewFont : m_zDefaultFont;
+            var zMeasure = zGraphics.MeasureString(sFontName, zFontNameFont);
+            var fNameRenderOffsetY = (e.Bounds.Height - zMeasure.Height) / 2f;
+            zGraphics.DrawString(sFontName, zFontNameFont, zFontBrush, e.Bounds.X, e.Bounds.Y + fNameRenderOffsetY);
+
+            if (m_bFontComboOpen)
+            {
+                var zFont = m_zFontDictionary[sFontName] ?? FontLoader.GetFont(FontLoader.DefaultFont.FontFamily, PREVIEW_FONT_SIZE, FontStyle.Regular);
+                var fSampleRenderOffsetX = e.Bounds.X + zMeasure.Width;
+
+                zMeasure = zGraphics.MeasureString(SAMPLE_TEXT, zFont);
+
+                var fSampleRenderOffsetY = (e.Bounds.Height - zMeasure.Height) / 2f;
+                zGraphics.DrawString(SAMPLE_TEXT, zFont, zFontBrush, fSampleRenderOffsetX, e.Bounds.Y + fSampleRenderOffsetY);
+            }
+        }
+
+
         private void comboShapeType_SelectedIndexChanged(object sender, EventArgs e)
         {
             propertyGridShape.SelectedObject = comboShapeType.SelectedItem;
@@ -410,21 +520,25 @@ namespace CardMaker.Forms
         {
             if (!string.IsNullOrEmpty(txtElementVariable.Text))
             {
-                var zBmp = DrawItem.LoadImageFromCache(txtElementVariable.Text);
+                var zElement = ElementManager.Instance.GetSelectedElement();
+                if (null == zElement)
+                {
+                    Logger.AddLogLine("Unable to set element size. Is an element selected?");
+                    return;
+                }
+                var zBmp = ImageCache.LoadCustomImageFromCache(txtElementVariable.Text, zElement);
                 if (null == zBmp)
                 {
-                    var zElement = ElementManager.Instance.GetSelectedElement();
-                    if (null != zElement)
+                    // attempt a translated version of the element variable
+                    var zElementString = LayoutManager.Instance.ActiveDeck.GetStringFromTranslationCache(zElement.name);
+                    if (null != zElementString.String)
                     {
-                        var zElementString = LayoutManager.Instance.ActiveDeck.GetStringFromTranslationCache(zElement.name);
-                        if (null != zElementString.String)
-                        {
-                            zBmp = DrawItem.LoadImageFromCache(zElementString.String);
-                        }
+                        zBmp = ImageCache.LoadCustomImageFromCache(zElementString.String, zElement);
                     }
                 }
                 if (null != zBmp)
                 {
+#warning -- this is 2 events, not 1 (in the case of undo)
                     numericElementW.Value = zBmp.Width;
                     numericElementH.Value = zBmp.Height;
                 }
@@ -478,6 +592,18 @@ namespace CardMaker.Forms
                 contextMenuStripAssist.Items.Add("Add Switch Statement", null,
                     (os, ea) =>
                         InsertVariableText("#(switch;key;keytocheck1;value1;keytocheck2;value2;#default;#empty)#"));
+                contextMenuStripAssist.Items.Add("Add Background Shape (basic)", null,
+                    (os, ea) =>
+                        InsertVariableText("#bgshape::#roundedrect;0;-;-;10#::0xff0000#"));
+                contextMenuStripAssist.Items.Add("Add Background Shape (advanced)", null,
+                    (os, ea) =>
+                        InsertVariableText("#bgshape::#roundedrect;0;-;-;10#::0xff0000::0::0::0::0::0::0xffffff#"));
+                contextMenuStripAssist.Items.Add("Add Background Graphic (basic)", null,
+                    (os, ea) =>
+                        InsertVariableText("#bggraphic::images/Faction_empire.bmp#"));
+                contextMenuStripAssist.Items.Add("Add Background Graphic (advanced)", null,
+                    (os, ea) =>
+                        InsertVariableText("#bggraphic::images/Faction_empire.bmp::0::0::0::0::true::-::0::0#"));
                 switch ((ElementType) comboElementType.SelectedIndex)
                 {
                     case ElementType.FormattedText:
@@ -527,6 +653,18 @@ namespace CardMaker.Forms
                 contextMenuStripAssist.Items.Add("Add Switch Statement", null,
                     (os, ea) =>
                         InsertVariableText(string.Format("switch(key){0}{{{0}case keytocheck1:{0}\tvalue1;{0}}}", Environment.NewLine)));
+                contextMenuStripAssist.Items.Add("Add Background Shape (basic)", null,
+                    (os, ea) =>
+                        InsertVariableText("'#bgshape::#roundedrect;0;-;-;10#::0xff0000#'"));
+                contextMenuStripAssist.Items.Add("Add Background Shape (advanced)", null,
+                    (os, ea) =>
+                        InsertVariableText("'#bgshape::#roundedrect;0;-;-;10#::0xff0000::0::0::0::0::0::0xffffff#'"));
+                contextMenuStripAssist.Items.Add("Add Background Graphic (basic)", null,
+                    (os, ea) =>
+                        InsertVariableText("'#bggraphic::images/Faction_empire.bmp#'"));
+                contextMenuStripAssist.Items.Add("Add Background Graphic (advanced)", null,
+                    (os, ea) =>
+                        InsertVariableText("'#bggraphic::images/Faction_empire.bmp::0::0::0::0::true::-::0::0#'"));
                 switch ((ElementType)comboElementType.SelectedIndex)
                 {
                     case ElementType.FormattedText:
@@ -550,7 +688,7 @@ namespace CardMaker.Forms
             contextMenuStripAssist.Show(btnAssist, new Point(btnAssist.Width, 0), ToolStripDropDownDirection.AboveLeft);
         }
 
-        #endregion
+#endregion
 
         private void SetColorValue(Button btnClicked, Color color, ProjectLayoutElement zElement)
         {
@@ -565,6 +703,10 @@ namespace CardMaker.Forms
             else if (btnClicked == btnElementFontColor || btnClicked == btnElementShapeColor)
             {
                 zElement.SetElementColor(color);
+            }
+            if (btnClicked == btnElementBackgroundColor || btnClicked == btnNullBackgroundColor)
+            {
+                zElement.SetElementBackgroundColor(color);
             }
         }
 
@@ -642,8 +784,8 @@ namespace CardMaker.Forms
 
         private void HandleEnableStates()
         {
-            // TODO: this is duplicated in UpdateElementValues
-            groupBoxElement.Enabled = (null != ElementManager.Instance.GetSelectedElement());
+            groupBoxElement.Enabled = null != ElementManager.Instance.GetSelectedElement() &&
+                                       ElementManager.Instance.SelectedElements.TrueForAll(e => e.enabled);
         }
 
         private void CreateControlFieldDictionary()
@@ -668,6 +810,7 @@ namespace CardMaker.Forms
             m_dictionaryControlField.Add(comboTextHorizontalAlign, zType.GetProperty("horizontalalign"));
             m_dictionaryControlField.Add(comboTextVerticalAlign, zType.GetProperty("verticalalign"));
             m_dictionaryControlField.Add(numericElementOpacity, zType.GetProperty("opacity"));
+            m_dictionaryControlField.Add(txtTileSize, zType.GetProperty("tilesize"));
 
             // HandleFontSettingChange related 
             m_dictionaryControlField.Add(numericLineSpace, zType.GetProperty("lineheight"));
@@ -760,11 +903,7 @@ namespace CardMaker.Forms
             zSetMethodInfo.Invoke(zElement, new object[] { zNewValue });
 
             // execute any control/element property specific functionality
-            Action<ProjectLayoutElement> actionElement;
-            if(m_dictionaryControlActions.TryGetValue(zControl, out actionElement))
-            {
-                actionElement(zElement);
-            }
+            PerformControlChangeActions(zElement, zControl);
 
             if (ElementManager.Instance.GetSelectedElement() != zElement || bSkipControlUpdate)
             {
@@ -823,19 +962,24 @@ namespace CardMaker.Forms
                 m_bFireElementChangeEvents = true;
 
                 // TODO: if the value does not actually change this applies an update for no specific reason... (tbd)
-                PerformControlChangeActions(numericElementX, numericElementY, numericElementW, numericElementH, numericElementRotation);
+                PerformControlChangeActions(zElement, numericElementX, numericElementY, numericElementW, numericElementH, numericElementRotation);
             }
             LayoutManager.Instance.FireLayoutUpdatedEvent(true);
         }
-
-        private void PerformControlChangeActions(params Control[] arraycontrols)
+        
+        /// <summary>
+        /// Perform any actions associated with the specified control using the element as a parameter
+        /// </summary>
+        /// <param name="zElement">The element to act with</param>
+        /// <param name="arraycontrols">The controls to check for associated actions</param>
+        private void PerformControlChangeActions(ProjectLayoutElement zElement, params Control[] arraycontrols)
         {
             Action<ProjectLayoutElement> action;
             foreach(var zControl in arraycontrols)
             {
                 if (m_dictionaryControlActions.TryGetValue(zControl, out action))
                 {
-                    action(ElementManager.Instance.GetSelectedElement());
+                    action(zElement);
                 }                
             }
         }
@@ -862,11 +1006,12 @@ namespace CardMaker.Forms
                 comboTextVerticalAlign.SelectedIndex = zElement.verticalalign;
                 comboGraphicHorizontalAlign.SelectedIndex = zElement.horizontalalign;
                 comboGraphicVerticalAlign.SelectedIndex = zElement.verticalalign;
+                txtTileSize.Text = zElement.tilesize;
                 checkJustifiedText.Checked = zElement.justifiedtext;
                 txtElementVariable.Text = zElement.variable;
                 txtElementVariable.SelectionStart = zElement.variable.Length;
                 txtElementVariable.SelectionLength = 0;
-                ElementType eType = m_dictionaryElementTypes[zElement.type];
+                ElementType eType = EnumUtil.GetElementType(zElement.type);
                 switch (eType)
                 {
                     case ElementType.Shape:
@@ -901,9 +1046,8 @@ namespace CardMaker.Forms
                 // this fires a change event on the combo box... seems like it might be wrong?
                 comboElementType.SelectedIndex = (int)eType;
                 UpdatePanelColors(zElement);
-                groupBoxElement.Enabled = true;
                 Font zFont = zElement.GetElementFont();
-                zFont = zFont ?? DrawItem.DefaultFont;
+                zFont = zFont ?? FontLoader.DefaultFont;
                 for (int nFontIndex = 0; nFontIndex < comboFontName.Items.Count; nFontIndex++)
                 {
                     if (zFont.Name.Equals((string)comboFontName.Items[nFontIndex], StringComparison.CurrentCultureIgnoreCase))
@@ -916,10 +1060,7 @@ namespace CardMaker.Forms
                 SetupElementFont(zFont);
                 m_bFireElementChangeEvents = true;
             }
-            else
-            {
-                groupBoxElement.Enabled = false;
-            }
+            HandleEnableStates();
         }
 
         private void SetupElementFont(Font zElementFont)
@@ -965,6 +1106,9 @@ namespace CardMaker.Forms
             panelOutlineColor.BackColor = zElement.GetElementOutlineColor();
             panelShapeColor.BackColor = zElement.GetElementColor();
             panelFontColor.BackColor = panelShapeColor.BackColor;
+            panelBackgroundColor.BackColor = zElement.GetElementBackgroundColor() == CardMakerConstants.NoColor
+                ? Control.DefaultBackColor
+                : zElement.GetElementBackgroundColor();
         }
 
         private void InsertVariableText(string textToInsert)
@@ -974,6 +1118,17 @@ namespace CardMaker.Forms
                 txtElementVariable.Text.Remove(previousSelectionStart, txtElementVariable.SelectionLength).Insert(txtElementVariable.SelectionStart, textToInsert);
             txtElementVariable.SelectionStart = previousSelectionStart + textToInsert.Length;
             txtElementVariable.SelectionLength = 0;
+        }
+
+        private FontFamily[] GetFontFamilies()
+        {
+            var zFonts = new InstalledFontCollection();
+            var arrayFontsCopy = new FontFamily[zFonts.Families.Length];
+            Array.Copy(zFonts.Families, arrayFontsCopy, zFonts.Families.Length);
+#if MONO_BUILD // the collection is unsorted in mono
+            Array.Sort(arrayFontsCopy, (a, b) => a.Name.CompareTo(b.Name));
+#endif
+            return arrayFontsCopy;
         }
     }
 }

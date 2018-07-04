@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +23,33 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
+using System.Collections.Generic;
+
 namespace CardMaker.Data
 {
+    public static class EnumUtil
+    {
+        private static readonly Dictionary<string, ElementType> s_dictionaryStringElementType = new Dictionary<string, ElementType>();
+
+        static EnumUtil()
+        {
+            for (var nIdx = 0; nIdx < (int)ElementType.End; nIdx++)
+            {
+                s_dictionaryStringElementType.Add(((ElementType)nIdx).ToString(), (ElementType)nIdx);
+            }
+        }
+
+        public static ElementType GetElementType(string sType)
+        {
+            ElementType eType;
+            if (s_dictionaryStringElementType.TryGetValue(sType, out eType))
+            {
+                return eType;
+            }
+            return ElementType.End;
+        }
+    }
+
     public enum ElementType
     {
         Text,
@@ -34,11 +59,19 @@ namespace CardMaker.Data
         End
     }
 
+    public enum MeasurementUnit
+    {
+        Inch,
+        Millimeter,
+        Centimeter
+    }
+
     public enum IniSettings
     {
         PreviousProjects,
         ReplacementChars,
         ProjectManagerRoot,
+        PrintPageMeasurementUnit,
         PrintPageWidth,
         PrintPageHeight,
         PrintPageVerticalMargin,
@@ -57,7 +90,9 @@ namespace CardMaker.Data
     public enum ExportType
     {
         PDFSharp,
-        Image
+        Image,
+        SingleImage,
+        SingleImageClipboard
     }
 
     public enum TranslatorType

@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@ using CardMaker.Card;
 using CardMaker.Data;
 using CardMaker.Events.Args;
 using CardMaker.XML;
+using Support.IO;
 
 namespace CardMaker.Events.Managers
 {
@@ -39,6 +40,7 @@ namespace CardMaker.Events.Managers
         private static LayoutManager m_zInstance;
         
         public Deck ActiveDeck { get; private set; }
+
         public ProjectLayout ActiveLayout { get; private set; }
 
         /// <summary>
@@ -183,7 +185,7 @@ namespace CardMaker.Events.Managers
             if (null == zLayout.Element) return;
             foreach (var zElement in zLayout.Element)
             {
-                zElement.InitializeCache();
+                zElement.InitializeTranslatedFields();
             }
         }
 
@@ -212,6 +214,17 @@ namespace CardMaker.Events.Managers
                 InitializeActiveLayout();
                 CardMakerInstance.ForceDataCacheRefresh = false;
             }
+        }
+
+        /// <summary>
+        /// Resets the image cache(s)
+        /// </summary>
+        public void ClearImageCache()
+        {
+            ImageCache.ClearImageCaches();
+            ActiveDeck?.ResetDeckCache();
+            FireLayoutRenderUpdatedEvent();
+            Logger.AddLogLine("Cleared Image Cache");
         }
     }
 }

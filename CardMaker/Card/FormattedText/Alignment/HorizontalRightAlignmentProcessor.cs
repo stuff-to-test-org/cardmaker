@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2016 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,10 +29,10 @@ namespace CardMaker.Card.FormattedText.Alignment
 {
     class HorizontalRightAlignmentProcessor : HorizontalAlignmentProcessor
     {
-        public override float GetHorizontalOffset(ProjectLayoutElement zElement, RectangleF rectLast)
+        public override float GetHorizontalOffset(ProjectLayoutElement zElement, RectangleF rectFirst, RectangleF rectLast)
         {
             var fXOffset = -1f; // HACK: slight fudge
-            fXOffset += zElement.width - (rectLast.X + rectLast.Width);
+            fXOffset += zElement.width - rectLast.Right;
             return fXOffset;
         }
     }

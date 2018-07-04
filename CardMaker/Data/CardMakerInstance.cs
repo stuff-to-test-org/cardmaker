@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,9 +22,11 @@
 // SOFTWARE.
 ////////////////////////////////////////////////////////////////////////////////
 
+using System;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
+using CardMaker.Card;
 
 namespace CardMaker.Data
 {
@@ -52,6 +54,21 @@ namespace CardMaker.Data
         /// Flag indicating whether to draw the selected element guides
         /// </summary>
         public static bool DrawSelectedElementGuides { get; set; }
+
+        /// <summary>
+        /// Flag indicating whether to attempt to draw the layout dividers
+        /// </summary>
+        public static bool DrawLayoutDividers { get; set; }
+
+        /// <summary>
+        /// The number of dividers to render horizontally
+        /// </summary>
+        public static int LayoutDividerHorizontalCount { get; set; }
+
+        /// <summary>
+        /// The number of dividers to render vertically
+        /// </summary>
+        public static int LayoutDividerVerticalCount { get; set; }
 
         /// <summary>
         /// Flag indicating whether to draw the selected element rotation bounds
@@ -105,6 +122,8 @@ namespace CardMaker.Data
         /// </summary>
         public static bool ProcessingUserAction { get; set; }
 
+        public static Random Random { get; set; }
+
         static CardMakerInstance()
         {
             ApplicationDPI = 72f;
@@ -115,6 +134,7 @@ namespace CardMaker.Data
             GoogleCredentialsInvalid = false;
             GoogleAccessToken = null;
             ProcessingUserAction = false;
+            Random = new Random();
         }
     }
 }

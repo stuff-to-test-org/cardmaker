@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -53,6 +53,19 @@ namespace CardMaker.Data
             {
                 s_zIniManager.SetValue(IniSettings.ProjectManagerRoot, value);
             }
+        }
+
+        public static MeasurementUnit PrintPageMeasurementUnit
+        {
+            get
+            {
+                MeasurementUnit eMeasurementUnit;
+                MeasurementUnit.TryParse(
+                    s_zIniManager.GetValue(IniSettings.PrintPageMeasurementUnit,
+                        ((int) MeasurementUnit.Inch).ToString()), out eMeasurementUnit);
+                return eMeasurementUnit;
+            }
+            set { s_zIniManager.SetValue(IniSettings.PrintPageMeasurementUnit, ((int)value).ToString()); }
         }
 
         public static decimal PrintPageWidth

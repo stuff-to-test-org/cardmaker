@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 using System;
+using System.Windows.Forms;
+using CardMaker.Data;
 using CardMaker.Events.Args;
+using CardMaker.Forms;
+using Support.IO;
 
 namespace CardMaker.Events.Managers
 {
@@ -65,5 +69,46 @@ namespace CardMaker.Events.Managers
         }
 
         #endregion
+
+        /// <summary>
+        /// Checks if the google credentials are set.
+        /// </summary>
+        /// <returns>true if the credentials are set, false otherwise</returns>
+        public static bool CheckGoogleCredentials(Form parentForm)
+        {
+            if (string.IsNullOrEmpty(CardMakerInstance.GoogleAccessToken))
+            {
+                if (DialogResult.Cancel == MessageBox.Show(parentForm,
+                        "You do not appear to have any Google credentials configured. Press OK to configure.",
+                        "Google Credentials Missing",
+                        MessageBoxButtons.OKCancel,
+                        MessageBoxIcon.Information))
+                {
+                    return false;
+                }
+                Instance.FireGoogleAuthUpdateRequestedEvent();
+                return false;
+            }
+            return true;
+        }
+
+        public static void UpdateGoogleAuth(Form parentForm, Action zSuccessAction = null, Action zCancelAction = null)
+        {
+            var zDialog = new GoogleCredentialsDialog()
+            {
+                Icon = parentForm.Icon
+            };
+            switch (zDialog.ShowDialog(parentForm))
+            {
+                case DialogResult.OK:
+                    CardMakerInstance.GoogleAccessToken = zDialog.GoogleAccessToken;
+                    Logger.AddLogLine("Updated Google Credentials");
+                    zSuccessAction?.Invoke();
+                    break;
+                default:
+                    zCancelAction?.Invoke();
+                    break;
+            }
+        }
     }
 }

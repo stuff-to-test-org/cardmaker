@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -113,6 +113,29 @@ namespace CardMaker.Events.Managers
         public ProjectLayoutElement GetSelectedElement()
         {
             return m_listSelectedElements != null && m_listSelectedElements.Count > 0 ? m_listSelectedElements[0] : null;
+        }
+
+        public void ProcessSelectedElementsEnableToggle()
+        {
+            var dictionaryRedo = new Dictionary<ProjectLayoutElement, bool>();
+            var dictionaryUndo = new Dictionary<ProjectLayoutElement, bool>();
+
+            foreach (var zElement in m_listSelectedElements)
+            {
+                dictionaryUndo.Add(zElement, zElement.enabled);
+                dictionaryRedo.Add(zElement, !zElement.enabled);
+            }
+
+            UserAction.PushAction(bRedo =>
+            {
+                var dictionaryState = bRedo ? dictionaryRedo : dictionaryUndo;
+                foreach (var zKvp in dictionaryState)
+                {
+                    zKvp.Key.enabled = zKvp.Value;
+                }
+                LayoutManager.Instance.FireLayoutUpdatedEvent(true);
+            }, 
+            true);
         }
 
         /// <summary>

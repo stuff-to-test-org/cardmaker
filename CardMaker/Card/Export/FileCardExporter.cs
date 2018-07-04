@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2016 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,8 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
+using CardMaker.Data;
+using CardMaker.XML;
 using Support.IO;
 using Support.UI;
 
@@ -88,19 +90,18 @@ namespace CardMaker.Card.Export
                     var nX = 0;
                     var nY = 0;
                     var nCardsExportedInImage = 0;
-                    zGraphics.Clear(CurrentDeck.CardLayout.exportTransparentBackground ? 
-                        Color.FromArgb(0, 0, 0, 0) :
+                    zGraphics.Clear(CurrentDeck.CardLayout.exportTransparentBackground ?
+                        CardMakerConstants.NoColor :
                         Color.White);
                     do
                     {
                         CurrentDeck.ResetDeckCache();
-                        CurrentDeck.CardPrintIndex = nCardIdx;
+                        CurrentDeck.CardPrintIndex = nCardIdx++;
                         nCardsExportedInImage++;
                         CardRenderer.DrawPrintLineToGraphics(zGraphics, nX, nY, !CurrentDeck.CardLayout.exportTransparentBackground);
                         m_zExportCardBuffer.SetResolution(CurrentDeck.CardLayout.dpi, CurrentDeck.CardLayout.dpi);
 
                         zWait.ProgressStep(1);
-                        nCardIdx++;
 
                         int nMoveCount = 1;
                         if (m_nSkipStitchIndex > 0)
@@ -137,6 +138,8 @@ namespace CardMaker.Card.Export
                     } while (nCardIdx < CurrentDeck.CardCount);
 
                     string sFileName;
+
+                    // NOTE: nCardIdx at this point is 1 more than the actual index ... how convenient for export file names...
 
                     if (!string.IsNullOrEmpty(m_sOverrideStringFormat))
                     {
@@ -183,13 +186,10 @@ namespace CardMaker.Card.Export
         /// <param name="nWidth"></param>
         /// <param name="nHeight"></param>
         /// <param name="zGraphics"></param>
-        protected override void UpdateBufferBitmap(int nWidth, int nHeight, Graphics zGraphics = null)
+        protected override void UpdateBufferBitmap(int nWidth, int nHeight)
         {
             m_zExportCardBuffer?.Dispose();
-            m_zExportCardBuffer = null == zGraphics
-                ? new Bitmap(nWidth, nHeight)
-                : new Bitmap(nWidth, nHeight, zGraphics);
+            m_zExportCardBuffer = new Bitmap(nWidth, nHeight);
         }
-
     }
 }

@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,25 +36,28 @@ namespace CardMaker.Card.Translation
         private const string FUNCTION_PREFIX = "function(";
 
         public JavaScriptTranslator(Dictionary<string, int> dictionaryColumnNameToIndex, Dictionary<string, string> dictionaryDefines,
-            Dictionary<string, Dictionary<string, int>> dictionaryElementOverrides, List<string> listColumnNames)
-            : base(dictionaryColumnNameToIndex, dictionaryDefines, dictionaryElementOverrides, listColumnNames)
+            Dictionary<string, Dictionary<string, int>> dictionaryElementToFieldColumnOverrides, List<string> listColumnNames)
+            : base(dictionaryColumnNameToIndex, dictionaryDefines, dictionaryElementToFieldColumnOverrides, listColumnNames)
         {
 
         }
 
-        protected override ElementString TranslateToElementString(string sRawString, int nCardIndex, DeckLine zDeckLine, ProjectLayoutElement zElement)
+        protected override ElementString TranslateToElementString(Deck zDeck, string sRawString, int nCardIndex, DeckLine zDeckLine, ProjectLayoutElement zElement)
         {
             using (var engine = new V8ScriptEngine())
             {
+                var hostFunctions = new JavascriptHostFunctions(zElement);
+                engine.AddHostObject("host", Microsoft.ClearScript.HostItemFlags.GlobalMembers, hostFunctions);
                 var sScript = GetJavaScript(nCardIndex, zDeckLine, sRawString);
                 try
                 {
                     var sValue = engine.Evaluate(sScript);
-                    if (sValue is string || sValue is int)
+                    if (sValue is string || sValue is int || sValue is double)
                     {
                         return new ElementString()
                         {
-                            String = sValue.ToString()
+                            String = sValue.ToString(),
+                            OverrideFieldToValueDictionary = hostFunctions.dictionaryOverrideFieldToValue
                         };
                     }
                     else

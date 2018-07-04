@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -81,16 +81,23 @@ namespace CardMaker.Card.Import
             {
                 return;
             }
+            var sLocalCacheFile = Path.Combine(CardMakerInstance.StartupPath, CardMakerConstants.GOOGLE_CACHE_FILE);
 
             List<GoogleCacheItem> listCacheItems = null;
-            if (SerializationUtils.DeserializeFromXmlFile(Path.Combine(CardMakerInstance.StartupPath, CardMakerConstants.GOOGLE_CACHE_FILE), CardMakerConstants.XML_ENCODING,
+            if (SerializationUtils.DeserializeFromXmlFile(
+                sLocalCacheFile,
+                CardMakerConstants.XML_ENCODING,
                 ref listCacheItems))
             {
                 foreach (var zCacheItem in listCacheItems)
                 {
                     m_dictionaryDataCache.Add(zCacheItem.Reference, zCacheItem.Data);
                 }
-            }            
+            }
+            else
+            {
+                Logger.AddLogLine("Failed to read cache file: {0}".FormatString(sLocalCacheFile));
+            }
         }
 
         private bool IsAllDataCached()
@@ -215,8 +222,15 @@ namespace CardMaker.Card.Import
                     Data = zPair.Value
                 });
             }
-            SerializationUtils.SerializeToXmlFile(CardMakerConstants.GOOGLE_CACHE_FILE, listCacheItems,
-                CardMakerConstants.XML_ENCODING);            
+            var sLocalCacheFile = Path.Combine(CardMakerInstance.StartupPath, CardMakerConstants.GOOGLE_CACHE_FILE);
+
+            if (!SerializationUtils.SerializeToXmlFile(
+                sLocalCacheFile, 
+                listCacheItems,
+                CardMakerConstants.XML_ENCODING))
+            {
+                Logger.AddLogLine("Failed to write cache file: {0}".FormatString(sLocalCacheFile));
+            }
         }
     }
 }

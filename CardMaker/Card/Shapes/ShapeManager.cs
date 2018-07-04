@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,14 +32,12 @@ using CardMaker.XML;
 
 namespace CardMaker.Card.Shapes
 {
-    public class ShapeManager
+    public class ShapeManager : IShapeRenderer
     {
-        public static Dictionary<string, AbstractShape> s_dictionaryShapeByName = new Dictionary<string,AbstractShape>(); 
+        public static Dictionary<string, AbstractShape> s_dictionaryShapeByName = new Dictionary<string, AbstractShape>(); 
 
         // group numbers                                
         public static Regex s_regexShapes = new Regex(@"(.*)(#)(.+)(#)", RegexOptions.Compiled);
-
-        private ShapeManager(){}
 
         public static Dictionary<string, AbstractShape> ShapeDictionary => s_dictionaryShapeByName;
 
@@ -57,7 +55,7 @@ namespace CardMaker.Card.Shapes
             }
         }
 
-        public static void HandleShapeRender(Graphics zGraphics, string sShapeInfo, ProjectLayoutElement zElement)
+        public void HandleShapeRender(Graphics zGraphics, string sShapeInfo, ProjectLayoutElement zElement, int nXOffset = 0, int nYOffset = 0)
         {
             if (s_regexShapes.IsMatch(sShapeInfo))
             {
@@ -75,13 +73,13 @@ namespace CardMaker.Card.Shapes
                     if ((int)AbstractShape.ShapeInformationIndex.BasicShapeInformation < arraySplit.Length)
                     {
                         int nThickness;
-                        var nOverrideWidth = int.MinValue;
-                        var nOverrideHeight = int.MinValue;
-                        bParse = int.TryParse(arraySplit[(int)AbstractShape.ShapeInformationIndex.Thickness], out nThickness);
+                        var nOverrideWidth = Int32.MinValue;
+                        var nOverrideHeight = Int32.MinValue;
+                        bParse = Int32.TryParse(arraySplit[(int)AbstractShape.ShapeInformationIndex.Thickness], out nThickness);
                         if (!arraySplit[(int)AbstractShape.ShapeInformationIndex.OverrideWidth].Equals(AbstractShape.NO_SIZE_OVERRIDE))
-                            bParse &= int.TryParse(arraySplit[(int)AbstractShape.ShapeInformationIndex.OverrideWidth], out nOverrideWidth);
+                            bParse &= Int32.TryParse(arraySplit[(int)AbstractShape.ShapeInformationIndex.OverrideWidth], out nOverrideWidth);
                         if (!arraySplit[(int)AbstractShape.ShapeInformationIndex.OverrideHeight].Equals(AbstractShape.NO_SIZE_OVERRIDE))
-                            bParse &= int.TryParse(arraySplit[(int)AbstractShape.ShapeInformationIndex.OverrideHeight], out nOverrideHeight);
+                            bParse &= Int32.TryParse(arraySplit[(int)AbstractShape.ShapeInformationIndex.OverrideHeight], out nOverrideHeight);
                         zInfo = new ShapeInfo(nThickness, nOverrideWidth, nOverrideHeight, arraySplit);
                     }
                     if (!bParse)
@@ -95,10 +93,10 @@ namespace CardMaker.Card.Shapes
                     var targetRect = new Rectangle(0, 0, zElement.width - 1, zElement.height - 1);
 
                     // internally int.MinValue indicates no override
-                    if (int.MinValue != zInfo.OverrideWidth || int.MinValue != zInfo.OverrideHeight)
+                    if (Int32.MinValue != zInfo.OverrideWidth || Int32.MinValue != zInfo.OverrideHeight)
                     {
-                        var nOverrideWidth = int.MinValue == zInfo.OverrideWidth ? zElement.width : zInfo.OverrideWidth;
-                        var nOverrideHeight = int.MinValue == zInfo.OverrideHeight ? zElement.height : zInfo.OverrideHeight;
+                        var nOverrideWidth = Int32.MinValue == zInfo.OverrideWidth ? zElement.width : zInfo.OverrideWidth;
+                        var nOverrideHeight = Int32.MinValue == zInfo.OverrideHeight ? zElement.height : zInfo.OverrideHeight;
 
                         if (0 == nOverrideWidth || 0 == nOverrideHeight)
                             // nothing to draw
@@ -107,9 +105,13 @@ namespace CardMaker.Card.Shapes
                         zGraphics.TranslateTransform(targetRect.X, targetRect.Y);
                         targetRect = new Rectangle(0, 0, Math.Abs(nOverrideWidth), Math.Abs(nOverrideHeight));
                     }
+                    else if(nXOffset != 0 || nYOffset != 0)
+                    {
+                        zGraphics.TranslateTransform(nXOffset, nYOffset);
+                    }
 
                     zShape.DrawShape(zPath, targetRect, zInfo);
-                    DrawItem.DrawOutline(zElement, zGraphics, zPath);
+                    CardRenderer.DrawPathOutline(zElement, zGraphics, zPath);
 
                     if (0 == zInfo.Thickness)
                     {
@@ -130,40 +132,28 @@ namespace CardMaker.Card.Shapes
             }
         }
 
-        public static Rectangle GetZeroRectangle(int nX, int nY)
+        /// <summary>
+        /// Creates a rectangle based on the specified width and height, if either is negative the rectangle is shifted around the origin
+        /// </summary>
+        /// <param name="nWidth">The width of the desired rectangle (may be negative)</param>
+        /// <param name="nHeight">The height of the desired rectangle (may be negative)</param>
+        /// <returns></returns>
+        private static Rectangle GetZeroRectangle(int nWidth, int nHeight)
         {
-            if (nX >= 0)
+            if (nWidth >= 0)
             {
-                if (nY >= 0)
+                if (nHeight >= 0)
                 {
-                    return new Rectangle(0, 0, nX, nY);
+                    return new Rectangle(0, 0, nWidth, nHeight);
                 }
-                return new Rectangle(0, nY, nX, Math.Abs(nY));
+                return new Rectangle(0, nHeight, nWidth, Math.Abs(nHeight));
             }
             
-            if (nY >= 0)
+            if (nHeight >= 0)
             {
-                return new Rectangle(nX, 0, Math.Abs(nX), nY);
+                return new Rectangle(nWidth, 0, Math.Abs(nWidth), nHeight);
             }
-            return new Rectangle(nX, nY, Math.Abs(nX), Math.Abs(nY));
-        }
-    }
-
-    public class ShapeInfo
-    {
-        public int Thickness { get; }
-        public int OverrideWidth { get; }
-        public int OverrideHeight { get; }
-        public string[] Arguments { get; private set; }
-
-        private ShapeInfo() { }
-
-        public ShapeInfo(int nThickness, int nOverrideWidth, int nOverrideHeight, string [] arguments)
-        {
-            Thickness = nThickness;
-            OverrideWidth = nOverrideWidth;
-            OverrideHeight = nOverrideHeight;
-            Arguments = arguments;
+            return new Rectangle(nWidth, nHeight, Math.Abs(nWidth), Math.Abs(nHeight));
         }
     }
 }

@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -97,7 +97,11 @@ namespace CardMaker.Card.Translation
                 }
             }
             // replace ##, #L, Newlines
-            sOutput = sOutput.Replace("##", nCardNumber.ToString(CultureInfo.InvariantCulture).PadLeft(nLeftPad, '0')).Replace("#L", zLayout.Name).Replace(Environment.NewLine, string.Empty);
+            sOutput = 
+                sOutput.Replace("##", nCardNumber.ToString(CultureInfo.InvariantCulture).PadLeft(nLeftPad, '0'))
+                .Replace("#SC", (zCurrentPrintLine.RowSubIndex + 1).ToString(CultureInfo.InvariantCulture).PadLeft(nLeftPad, '0'))
+                .Replace("#L", zLayout.Name)
+                .Replace(Environment.NewLine, string.Empty);
 
             // last chance: replace unsupported characters (for file name)
             var zBuilder = new StringBuilder();

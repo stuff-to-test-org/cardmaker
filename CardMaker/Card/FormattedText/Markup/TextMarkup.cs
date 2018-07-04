@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ namespace CardMaker.Card.FormattedText.Markup
         {
         }
 
-        public override bool ProcessMarkup(ProjectLayoutElement zElement, FormattedTextData zData, FormattedTextProcessData zProcessData, Graphics zGraphics)
+        protected override bool ProcessMarkupHandler(ProjectLayoutElement zElement, FormattedTextData zData, FormattedTextProcessData zProcessData, Graphics zGraphics)
         {
             m_zFontBrush = zProcessData.FontBrush;
             m_zFont = zProcessData.Font;
@@ -167,7 +167,7 @@ namespace CardMaker.Card.FormattedText.Markup
                     zPath.AddString(m_sVariable, m_zFont.FontFamily, (int) m_zFont.Style, m_fFontOutlineSize,
                         new PointF(targetX, targetY), zFormat);
 
-                    DrawItem.DrawOutline(zElement, zGraphics, zPath);
+                    CardRenderer.DrawPathOutline(zElement, zGraphics, zPath);
                 }
                 catch (Exception)
                 {

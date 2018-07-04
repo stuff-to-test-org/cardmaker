@@ -6,7 +6,9 @@ This application was created to help me generate components for a board game. Yo
 
 ## Download
 
-Latest stable (I hope) release binary: [Download 0.99.3.0](https://github.com/nhmkdev/cardmaker/releases/tag/v.0.99.3.0)
+Latest stable (I hope) release binary: [Download 1.0.0.1](https://github.com/nhmkdev/cardmaker/releases/tag/v.1.0.0.1)
+
+[Download The Game Crafter templates for CardMaker](https://raw.githubusercontent.com/wiki/nhmkdev/cardmaker/CardMaker_TGC_Templates.zip)
 
 ## Sample
 
@@ -58,6 +60,8 @@ You will need to modify this code to correctly use your application.
 20XX - Lots of bug fixes and features
 
 2015 - CardMaker goes open source
+
+2017 - CardMaker is finally marked as 1.0.0.0 for no specific reason.
 
 ### The Name
 

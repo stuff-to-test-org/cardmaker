@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 // SOFTWARE.
 ////////////////////////////////////////////////////////////////////////////////
 
+using System;
 using System.Drawing;
 using CardMaker.Card.FormattedText.Markup;
 using CardMaker.XML;
@@ -43,6 +44,7 @@ namespace CardMaker.Card.FormattedText
         public float CurrentXOffset { get; set; }
 
         public float CurrentLineHeight { get; set; }
+        public StringAlignment CurrentStringAlignment { get; set; }
 
         public int CurrentLine { get; private set; }
 
@@ -64,18 +66,19 @@ namespace CardMaker.Card.FormattedText
 
             // NOTE the element word space is ignored! (is that a problem?)
             FontSpaceWidth = rectWithSpace.Width - rectWithoutSpace.Width;
-            FontSpaceHeight = rectWithSpace.Height;
+            FontSpaceHeight = Math.Max(rectWithSpace.Height, FontHeight);
         }
 
         public void AddFontStyle(FontStyle eStyle, Graphics zGraphics)
         {
-            SetFont(new Font(Font, Font.Style | eStyle), zGraphics);
+            var eNewStyle = Font.Style | eStyle;
+            SetFont(FontLoader.GetFont(Font.FontFamily, Font.Size, eNewStyle), zGraphics);
         }
 
         public void RemoveFontStyle(FontStyle eStyle, Graphics zGraphics)
         {
-            FontStyle eNewStyle = Font.Style & ~eStyle;
-            SetFont(new Font(Font, eNewStyle), zGraphics);
+            var eNewStyle = Font.Style & ~eStyle;
+            SetFont(FontLoader.GetFont(Font.FontFamily, Font.Size, eNewStyle), zGraphics);
         }
 
         public void MoveToNextLine(ProjectLayoutElement zElement)

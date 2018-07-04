@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,44 +24,60 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using CardMaker.Card.FormattedText;
 using CardMaker.Data;
 using CardMaker.XML;
+using Support.IO;
+using Support.UI;
 using Support.Util;
 
 namespace CardMaker.Card.Translation
 {
     public abstract class TranslatorBase
     {
+        // spreadsheet based overrides
         public Dictionary<string, int> DictionaryColumnNameToIndex { get; private set; }
         public Dictionary<string, string> DictionaryDefines { get; private set; }
-        public Dictionary<string, Dictionary<string, int>> DictionaryElementOverrides { get; }
+        protected Dictionary<string, Dictionary<string, int>> DictionaryElementToFieldColumnOverrides { get; }
         public List<string> ListColumnNames { get; private set; }
 
         protected readonly Dictionary<string, ElementString> m_dictionaryElementStringCache = new Dictionary<string, ElementString>();
         protected readonly Dictionary<string, FormattedTextDataCache> m_dictionaryMarkupCache = new Dictionary<string, FormattedTextDataCache>();
 
+        private static readonly HashSet<string> s_setDisallowedOverrideFields = new HashSet<string>()
+        {
+            "name",
+            "variable"
+        };
+        public static bool IsDisallowedOverrideField(string sField)
+        {
+            return s_setDisallowedOverrideFields.Contains(sField);
+        }
+
         protected TranslatorBase(Dictionary<string, int> dictionaryColumnNameToIndex, Dictionary<string, string> dictionaryDefines,
-            Dictionary<string, Dictionary<string, int>> dictionaryElementOverrides, List<string> listColumnNames)
+            Dictionary<string, Dictionary<string, int>> dictionaryElementToFieldColumnOverrides, List<string> listColumnNames)
         {
             DictionaryColumnNameToIndex = dictionaryColumnNameToIndex;
             DictionaryDefines = dictionaryDefines;
-            DictionaryElementOverrides = dictionaryElementOverrides;
+            DictionaryElementToFieldColumnOverrides = dictionaryElementToFieldColumnOverrides;
             ListColumnNames = listColumnNames;
         }
 
-        public ElementString TranslateString(string sRawString, int nCardIndex, DeckLine zDeckLine,
-            ProjectLayoutElement zElement, string sCacheSuffix = "")
+        public ElementString TranslateString(Deck zDeck, string sRawString, int nCardIndex, DeckLine zDeckLine, ProjectLayoutElement zElement, string sCacheSuffix = "")
         {
-            string sCacheKey = zElement.name + sCacheSuffix;
+            var sCacheKey = zElement.name + sCacheSuffix;
+
+            // pull from translated string cache
             ElementString zCached;
             if (m_dictionaryElementStringCache.TryGetValue(sCacheKey, out zCached))
             {
                 return zCached;
             }
 
-            var zElementString = TranslateToElementString(sRawString, nCardIndex, zDeckLine, zElement);
+            var zElementString = TranslateToElementString(zDeck, sRawString, nCardIndex, zDeckLine, zElement);
 
             if (zElementString.String.Contains("#nodraw"))
             {
@@ -92,78 +108,114 @@ namespace CardMaker.Card.Translation
             return zElementString;
         }
 
-        protected abstract ElementString TranslateToElementString(string sRawString, int nCardIndex, DeckLine zDeckLine,
+        protected abstract ElementString TranslateToElementString(Deck zDeck, string sRawString, int nCardIndex, DeckLine zDeckLine,
             ProjectLayoutElement zElement);
 
-        public ProjectLayoutElement GetOverrideElement(ProjectLayoutElement zElement, int nCardIndex, List<string> arrayLine, DeckLine zDeckLine)
+        public ProjectLayoutElement GetOverrideElement(Deck zDeck, ProjectLayoutElement zElement, int nCardIndex, List<string> arrayLine, DeckLine zDeckLine)
         {
             Dictionary<string, int> dictionaryOverrideColumns;
-            string sNameLower = zElement.name.ToLower();
-            DictionaryElementOverrides.TryGetValue(sNameLower, out dictionaryOverrideColumns);
-            if (null == dictionaryOverrideColumns)
-            {
-                return zElement;
-            }
+
+            DictionaryElementToFieldColumnOverrides.TryGetValue(zElement.name.ToLower(), out dictionaryOverrideColumns);
 
             var zOverrideElement = new ProjectLayoutElement();
             zOverrideElement.DeepCopy(zElement, false);
             zOverrideElement.name = zElement.name;
 
-            foreach (string sKey in dictionaryOverrideColumns.Keys)
+            if (null != dictionaryOverrideColumns)
             {
-                Type zType = typeof(ProjectLayoutElement);
-                PropertyInfo zProperty = zType.GetProperty(sKey);
-                if (null != zProperty && zProperty.CanWrite)
+                foreach (var sKey in dictionaryOverrideColumns.Keys)
                 {
-                    MethodInfo zMethod = zProperty.GetSetMethod();
-                    int nOverrideValueColumnIdx = dictionaryOverrideColumns[sKey];
-                    if (arrayLine.Count <= nOverrideValueColumnIdx)
+                    var zProperty = typeof(ProjectLayoutElement).GetProperty(sKey);
+                    if (null != zProperty && zProperty.CanWrite)
                     {
-                        continue;
+                        int nOverrideValueColumnIdx = dictionaryOverrideColumns[sKey];
+                        if (arrayLine.Count <= nOverrideValueColumnIdx)
+                        {
+                            continue;
+                        }
+                        string sValue = arrayLine[nOverrideValueColumnIdx].Trim();
+
+                        // Note: TranslateString maintains an element name based cache, the key is critical to make this translation unique
+                        sValue = TranslateString(zDeck, sValue, nCardIndex, zDeckLine, zOverrideElement, sKey).String;
+
+                        UpdateElementField(zOverrideElement, zProperty, sValue);
                     }
-                    string sValue = arrayLine[nOverrideValueColumnIdx].Trim();
-
-                    // Note: TranslateString maintains an element name based cache, the key is critical to make this translation unique
-                    sValue = TranslateString(sValue, nCardIndex, zDeckLine, zOverrideElement, sKey).String;
-
-                    if (!string.IsNullOrEmpty(sValue))
+                    else
                     {
-                        if (zProperty.PropertyType == typeof(string))
-                        {
-                            zMethod.Invoke(zOverrideElement, new object[] { sValue });
-                        }
-                        else if (zProperty.PropertyType == typeof(float))
-                        {
-                            float fValue;
-                            if (ParseUtil.ParseFloat(sValue, out fValue))
-                            {
-                                zMethod.Invoke(zOverrideElement, new object[] { fValue });
-                            }
-                        }
-                        else if (zProperty.PropertyType == typeof(bool))
-                        {
-                            bool bValue;
-                            if (bool.TryParse(sValue, out bValue))
-                            {
-                                zMethod.Invoke(zOverrideElement, new object[] { bValue });
-                            }
-                        }
-                        else if (zProperty.PropertyType == typeof(Int32))
-                        {
-                            int nValue;
-                            if (int.TryParse(sValue, out nValue))
-                            {
-                                zMethod.Invoke(zOverrideElement, new object[] { nValue });
-                            }
-                        }
+                        Logger.AddLogLine("Unrecognized data-based override: [{0}] for element: [{1}]".FormatString(sKey, zElement.name));
                     }
                 }
             }
-            zOverrideElement.InitializeCache(); // any cached items must be recached
+
             return zOverrideElement;
         }
 
-        #region Translation Cache
+        /// <summary>
+        /// Updates the passed in element with the provided field override dictionary
+        /// </summary>
+        /// <param name="zElement">Element to update with the override values</param>
+        /// <param name="dictionaryOverrideFieldToValue">The dictionary of fields/values to update with</param>
+        /// <returns>The updated Element</returns>
+        public ProjectLayoutElement GetVariableOverrideElement(ProjectLayoutElement zElement, Dictionary<string, string> dictionaryOverrideFieldToValue)
+        {
+            if (null != dictionaryOverrideFieldToValue)
+            {
+                foreach (var zKvp in dictionaryOverrideFieldToValue)
+                {
+                    // This apparently isn't slow... otherwise cache the lookup etc.
+                    var zProperty = typeof(ProjectLayoutElement).GetProperty(zKvp.Key);
+                    if (null != zProperty && zProperty.CanWrite)
+                    {
+                        UpdateElementField(zElement, zProperty, zKvp.Value);
+                    }
+                    else
+                    {
+                        Logger.AddLogLine("Unrecognized definition/variable override: [{0}] for element: [{1}]".FormatString(zKvp.Key, zElement.name));
+                    }
+                }
+            }
+            return zElement;
+        }
+
+        private static void UpdateElementField(ProjectLayoutElement zElement, PropertyInfo zPropertyInfo, string sValue)
+        {
+            var zMethod = zPropertyInfo.GetSetMethod();
+
+            if (!string.IsNullOrEmpty(sValue))
+            {
+                if (zPropertyInfo.PropertyType == typeof(string))
+                {
+                    zMethod.Invoke(zElement, new object[] { sValue });
+                }
+                else if (zPropertyInfo.PropertyType == typeof(float))
+                {
+                    float fValue;
+                    if (ParseUtil.ParseFloat(sValue, out fValue))
+                    {
+                        zMethod.Invoke(zElement, new object[] { fValue });
+                    }
+                }
+                else if (zPropertyInfo.PropertyType == typeof(bool))
+                {
+                    bool bValue;
+                    if (bool.TryParse(sValue, out bValue))
+                    {
+                        zMethod.Invoke(zElement, new object[] { bValue });
+                    }
+                }
+                else if (zPropertyInfo.PropertyType == typeof(Int32))
+                {
+                    int nValue;
+                    if (int.TryParse(sValue, out nValue) 
+                        || int.TryParse(sValue.Replace("0x", string.Empty), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out nValue))
+                    {
+                        zMethod.Invoke(zElement, new object[] { nValue });
+                    }
+                }
+            }
+        }
+
+#region Translation Cache
 
         public void ResetTranslationCache(ProjectLayoutElement zElement)
         {
@@ -205,7 +257,7 @@ namespace CardMaker.Card.Translation
             return null;
         }
 
-        #endregion
+#endregion
 
         public void ResetDeckCache()
         {
@@ -213,7 +265,7 @@ namespace CardMaker.Card.Translation
             ResetMarkupCache();
         }
 
-        #region Markup Cache
+#region Markup Cache
 
         public void AddCachedMarkup(string sElementName, FormattedTextDataCache zFormattedData)
         {
@@ -232,7 +284,7 @@ namespace CardMaker.Card.Translation
                 m_dictionaryMarkupCache.Remove(sElementName);
             }
         }
-        #endregion
+#endregion
 
     }
 }

@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -426,10 +426,9 @@ namespace CardMaker.Card
             WaitDialog.Instance.ProgressStep(0);
         }
 
-        public ElementString TranslateString(string sRawString, DeckLine zDeckLine,
-            ProjectLayoutElement zElement, bool bPrint, string sCacheSuffix = "")
+        public ElementString TranslateString(string sRawString, DeckLine zDeckLine, ProjectLayoutElement zElement, bool bPrint, string sCacheSuffix = "")
         {
-            return m_zTranslator.TranslateString(sRawString, bPrint ? m_nCardPrintIndex : m_nCardIndex, zDeckLine, zElement, sCacheSuffix);
+            return m_zTranslator.TranslateString(this, sRawString, bPrint ? m_nCardPrintIndex : m_nCardIndex, zDeckLine, zElement, sCacheSuffix);
         }
 
         public ElementString GetStringFromTranslationCache(string sKey)
@@ -451,9 +450,14 @@ namespace CardMaker.Card
 
         #endregion
 
-        public ProjectLayoutElement GetOverrideElement(ProjectLayoutElement zElement, List<string> arrayLine, DeckLine zDeckLine, bool bExport)
+        public ProjectLayoutElement GetOverrideElement(ProjectLayoutElement zElement, DeckLine zDeckLine, bool bExport)
         {
-            return m_zTranslator.GetOverrideElement(zElement, bExport ? m_nCardPrintIndex : m_nCardIndex, arrayLine, zDeckLine);
+            return m_zTranslator.GetOverrideElement(this, zElement, bExport ? m_nCardPrintIndex : m_nCardIndex, zDeckLine.LineColumns, zDeckLine);
+        }
+
+        public ProjectLayoutElement GetVariableOverrideElement(ProjectLayoutElement zElement, Dictionary<string, string> dictionaryOverrideFieldToValue)
+        {
+            return m_zTranslator.GetVariableOverrideElement(zElement, dictionaryOverrideFieldToValue);
         }
 
         /// <summary>
@@ -491,7 +495,7 @@ namespace CardMaker.Card
             }
         }
 
-#region Cache General
+        #region Cache General
 
         public void ResetDeckCache()
         {
@@ -521,8 +525,6 @@ namespace CardMaker.Card
 
 
         #region Layout Set
-#warning todo: make a deck loader interface so this can be handled from the command line
-
         public void SetAndLoadLayout(ProjectLayout zLayout, bool bExporting)
         {
             CardLayout = zLayout;

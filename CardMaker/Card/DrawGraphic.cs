@@ -1,7 +1,7 @@
 ﻿////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,85 +24,128 @@
 
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
+using System.Text.RegularExpressions;
+using CardMaker.Data;
 using CardMaker.Events.Managers;
 using CardMaker.XML;
+using Support.Util;
 
 namespace CardMaker.Card
 {
-    public static partial class DrawItem
+    public class DrawGraphic : IDrawGraphic
     {
-        private static void DrawGraphic(Graphics zGraphics, string sFile, ProjectLayoutElement zElement)
+        //                                                          1    2  3
+        private static readonly Regex regexImageTile = new Regex(@"(.+?)(x)(.+)", RegexOptions.Compiled);
+
+        private const string APPLICATION_FOLDER_MARKER = "{appfolder}";
+
+        public void DrawGraphicFile(Graphics zGraphics, string sFile, ProjectLayoutElement zElement, int nXGraphicOffset = 0, int nYGraphicOffset = 0)
         {
-            string sPath = sFile;
-            if (sPath.Equals("none", StringComparison.CurrentCultureIgnoreCase))
+            var sPath = sFile;
+            if (string.IsNullOrEmpty(sFile)
+                || sPath.Equals("none", StringComparison.CurrentCultureIgnoreCase))
             {
                 return;
+            }
+            if (sPath.StartsWith(APPLICATION_FOLDER_MARKER))
+            {
+                sPath = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location),
+                    sPath.Replace(APPLICATION_FOLDER_MARKER, string.Empty));
             }
             if (!File.Exists(sPath))
             {
                 sPath = ProjectManager.Instance.ProjectPath + sFile;
             }
-            if (File.Exists(sPath))
+            if (!File.Exists(sPath))
             {
-                var zBmp = 255 != zElement.opacity
-                    ? LoadOpacityImageFromCache(sPath, zElement)
-                    : LoadImageFromCache(sPath);
+                IssueManager.Instance.FireAddIssueEvent("Image file not found: " + sFile);
+                return;
+            }
+
+            var zBmp = ImageCache.LoadCustomImageFromCache(sPath, zElement);
                 
-                int nWidth = zElement.width;
-                int nHeight = zElement.height;
+            var nWidth = zElement.width;
+            var nHeight = zElement.height;
 
-                if (zElement.keeporiginalsize)
+            // TODO: sub processor methods (at a minimum)
+
+            if (!string.IsNullOrWhiteSpace(zElement.tilesize) 
+                && zElement.tilesize.Trim() != "-")
+            {
+                var zMatch = regexImageTile.Match(zElement.tilesize);
+                if (zMatch.Success)
                 {
-                    DrawGraphicOriginalSize(zGraphics, zBmp, zElement);
-                    return;
-                }
+                    var nTileWidth = Math.Max(-1, ParseUtil.ParseDefault(zMatch.Groups[1].Value, -1));
+                    var nTileHeight = Math.Max(-1, ParseUtil.ParseDefault(zMatch.Groups[3].Value, -1));
+                    GetAspectRatioHeight(zBmp, nTileWidth, nTileHeight, out nTileWidth, out nTileHeight);
+                    // paranoia...
+                    nTileWidth = Math.Max(1, nTileWidth);
+                    nTileHeight = Math.Max(1, nTileHeight);
 
-                if (zElement.lockaspect)
+                    zBmp = ImageCache.LoadCustomImageFromCache(sFile, zElement, nTileWidth, nTileHeight);
+                }
+                using (var zTextureBrush = new TextureBrush(zBmp, WrapMode.Tile))
                 {
-                    var fAspect = (float)zBmp.Tag;
-
-                    var nTargetHeight = (int)((float)nWidth / fAspect);
-                    if (nTargetHeight < nHeight)
-                    {
-                        nHeight = (int)((float)nWidth / fAspect);
-                    }
-                    else
-                    {
-                        nWidth = (int)((float)nHeight * fAspect);
-                    }
+                    // backup the transform
+                    var zOriginalTransform = zGraphics.Transform;
+                    // need to translate so the tiling starts with a full image if offset
+                    zGraphics.TranslateTransform(nXGraphicOffset, nYGraphicOffset);
+                    zGraphics.FillRectangle(zTextureBrush, 0, 0, nWidth, nHeight);
+                    zGraphics.Transform = zOriginalTransform;
                 }
+                return;
+            }
 
-                int nX = 0;
-                int nY = 0;
+            if (zElement.keeporiginalsize)
+            {
+                DrawGraphicOriginalSize(zGraphics, zBmp, zElement);
+                return;
+            }
 
-                // standard alignment adjustment
-                UpdateAlignmentValue(zElement.GetHorizontalAlignment(), ref nX, zElement.width, nWidth);
-                UpdateAlignmentValue(zElement.GetVerticalAlignment(), ref nY, zElement.height, nHeight);
+            if (zElement.lockaspect)
+            {
+                GetSizeFromAspectRatio((float) zBmp.Tag, nWidth, nHeight, out nWidth, out nHeight);
+            }
 
-                zGraphics.DrawImage(zBmp, nX, nY, nWidth, nHeight);
+            var nX = 0;
+            var nY = 0;
 
+            // standard alignment adjustment
+            UpdateAlignmentValue(zElement.GetHorizontalAlignment(), ref nX, zElement.width, nWidth);
+            UpdateAlignmentValue(zElement.GetVerticalAlignment(), ref nY, zElement.height, nHeight);
+            zGraphics.DrawImage(zBmp, nX + nXGraphicOffset, nY + nYGraphicOffset, nWidth, nHeight);
+        }
+
+        private static void GetSizeFromAspectRatio(float fAspect, int nWidth, int nHeight, out int nDestWidth, out int nDestHeight)
+        {
+            var nTargetHeight = (int)((float)nWidth / fAspect);
+            if (nTargetHeight < nHeight)
+            {
+                nDestWidth = nWidth;
+                nDestHeight = (int)((float)nWidth / fAspect);
             }
             else
             {
-                IssueManager.Instance.FireAddIssueEvent("Image file not found: " + sFile);
+                nDestWidth = (int)((float)nHeight * fAspect);
+                nDestHeight = nHeight;
             }
-            // draw nothing
         }
 
         /// <summary>
-        /// Draws the image cropped based on alignment. The image is always drawn in proper aspect by this method
+        /// Draws the image cropped based on alignment. The image is always drawn in proper aspect ratio by this method.
         /// </summary>
         /// <param name="zGraphics"></param>
         /// <param name="zBmp"></param>
         /// <param name="zElement"></param>
         private static void DrawGraphicOriginalSize(Graphics zGraphics, Bitmap zBmp, ProjectLayoutElement zElement)
         {
-            int nSourceX = 0;
-            int nSourceY = 0;
+            var nSourceX = 0;
+            var nSourceY = 0;
 
-            int nX = 0;
-            int nY = 0;
+            var nX = 0;
+            var nY = 0;
 
             // determine if the update is needed for drawing source X or target X
             if (zBmp.Width > zElement.width)
@@ -136,6 +179,32 @@ namespace CardMaker.Card
                     nResult = nLarge - nSmall;
                     break;
             }            
+        }
+
+#warning needs unit tests
+        public static void GetAspectRatioHeight(Bitmap zBmp, int nDesiredWidth, int nDesiredHeight, out int nWidth, out int nHeight)
+        {
+            if (0 >= nDesiredWidth
+                && 0 >= nDesiredHeight)
+            {
+                nWidth = zBmp.Width;
+                nHeight = zBmp.Height;
+            }
+            else if (0 >= nDesiredWidth)
+            {
+                nWidth = (int)((float)nDesiredHeight * (float)zBmp.Tag);
+                nHeight = nDesiredHeight;
+            }
+            else if (0 >= nDesiredHeight)
+            {
+                nWidth = nDesiredWidth;
+                nHeight = (int) ((float)nDesiredWidth / (float) zBmp.Tag);
+            }
+            else
+            {
+                nWidth = nDesiredWidth;
+                nHeight = nDesiredHeight;
+            }
         }
     }
 }

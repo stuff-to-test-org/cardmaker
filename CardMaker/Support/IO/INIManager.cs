@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,6 @@ using System.Windows.Forms;
 
 namespace Support.IO
 {
-
     public class IniManager
     {
         private const char CHAR_SPLITTER = '=';
@@ -195,10 +194,9 @@ namespace Support.IO
                 }
                 zWriter.Close();
             }
-#warning do nothing?
-            catch (Exception)
+            catch (Exception e)
             {
-                throw;
+                Logger.AddLogLine("Failed to persist settings: " + e);
             }
         }
 
@@ -241,9 +239,9 @@ namespace Support.IO
                     }
                 }
             }
-#warning do nothing??
-            catch (Exception)
+            catch (Exception e)
             {
+                Logger.AddLogLine("Failed to get settings: " + e);
             }
             return dictionaryItems;
         }

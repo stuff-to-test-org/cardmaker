@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 Tim Stair
+// Copyright (c) 2018 Tim Stair
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@ using CardMaker.Card.Import;
 using CardMaker.Data;
 using CardMaker.Events.Args;
 using CardMaker.Events.Managers;
+using CardMaker.Forms.Dialogs;
 using CardMaker.Properties;
 using CardMaker.XML;
 using Support.IO;
@@ -206,19 +207,35 @@ namespace CardMaker.Forms
             const string TEMPLATE = "template";
             const string NAME = "name";
             const string COUNT = "count";
-            var listItems = new List<string>();
-            LayoutTemplateManager.Instance.LayoutTemplates.ForEach(x => listItems.Add(x.ToString()));
+            var listTemplateNames = new List<string>();
+            LayoutTemplateManager.Instance.LayoutTemplates.ForEach(x => listTemplateNames.Add(x.ToString()));
 
-            var zQuery = new QueryPanelDialog("Select Layout Template", 450, false);
+            var zQuery = new QueryPanelDialog("Select Layout Template", 600, false);
             zQuery.SetIcon(Resources.CardMakerIcon);
             zQuery.AddTextBox("New Layout Name", "New Layout", false, NAME);
             zQuery.AddNumericBox("Number to create", 1, 1, 256, COUNT);
-            zQuery.AddListBox("Template", listItems.ToArray(), null, false, 120, TEMPLATE);
-            zQuery.AllowResize();
-            while(DialogResult.OK == zQuery.ShowDialog(this))
+            var zTxtFilter = zQuery.AddTextBox("Template Filter", string.Empty, false, TEMPLATE + NAME);
+            var zListBoxTemplates = zQuery.AddListBox("Template", listTemplateNames.ToArray(), null, false, 240, TEMPLATE);
+            zListBoxTemplates.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right | AnchorStyles.Left;
+            zTxtFilter.TextChanged += (o, args) =>
             {
-                int nSelectedIndex = zQuery.GetIndex(TEMPLATE);
-                if(-1 == nSelectedIndex)
+                var txtBox = (TextBox) o;
+                zListBoxTemplates.Items.Clear();
+                if (string.IsNullOrWhiteSpace(txtBox.Text))
+                {
+                    listTemplateNames.ForEach(zTemplate => zListBoxTemplates.Items.Add(zTemplate));
+                }
+                else
+                {
+                    listTemplateNames.Where(sTemplateName => sTemplateName.ToLower().Contains(txtBox.Text.ToLower())).ToList().ForEach(zTemplate => zListBoxTemplates.Items.Add(zTemplate));
+                }
+            };
+
+            zQuery.AllowResize();
+            while (DialogResult.OK == zQuery.ShowDialog(this))
+            {
+                var nSelectedIndex = listTemplateNames.IndexOf(zQuery.GetString(TEMPLATE));
+                if (-1 == nSelectedIndex)
                 {
                     MessageBox.Show("Please select a layout template");
                     continue;
@@ -330,17 +347,8 @@ namespace CardMaker.Forms
 
         private void addGoogleSpreadsheetReferenceToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (String.IsNullOrEmpty(CardMakerInstance.GoogleAccessToken))
+            if (!GoogleAuthManager.CheckGoogleCredentials(this))
             {
-                if(DialogResult.Cancel == MessageBox.Show(this,
-                    "You do not appear to have any Google credentials configured. Press OK to configure.",
-                    "Google Credentials Missing",
-                    MessageBoxButtons.OKCancel,
-                    MessageBoxIcon.Information))
-                {
-                    return;
-                }
-                GoogleAuthManager.Instance.FireGoogleAuthUpdateRequestedEvent();
                 return;
             }
 
@@ -520,35 +528,7 @@ namespace CardMaker.Forms
 
         private void projectSettingsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            const string TRANSLATOR = "translator";
-            const string DEFAULT_DEFINE_REFERENCE_TYPE = "default_define_reference_type";
-            const string OVERRIDE_DEFINE_REFRENCE_NAME = "override_define_reference_name";
-
-            var zQuery = new QueryPanelDialog("Project Settings", 450, 200, false);
-            zQuery.SetIcon(Resources.CardMakerIcon);
-
-            TranslatorType eTranslator = ProjectManager.Instance.LoadedProjectTranslatorType;
-            ReferenceType eDefaultDefineReferenceType = ProjectManager.Instance.LoadedProjectDefaultDefineReferenceType;
-
-            zQuery.AddPullDownBox("Translator",
-                Enum.GetNames(typeof(TranslatorType)), (int)eTranslator, TRANSLATOR);
-
-            zQuery.AddPullDownBox("Default Define Reference Type", Enum.GetNames(typeof(ReferenceType)), (int)eDefaultDefineReferenceType, DEFAULT_DEFINE_REFERENCE_TYPE);
-            zQuery.AddTextBox(
-                "Google Project Define Spreadsheet override", 
-                ProjectManager.Instance.LoadedProject.overrideDefineReferenceName, 
-                false,
-                OVERRIDE_DEFINE_REFRENCE_NAME);
-
-            if (DialogResult.OK == zQuery.ShowDialog(this))
-            {
-                ProjectManager.Instance.LoadedProject.translatorName = ((TranslatorType) zQuery.GetIndex(TRANSLATOR)).ToString();
-                ProjectManager.Instance.LoadedProject.defaultDefineReferenceType = ((ReferenceType)zQuery.GetIndex(DEFAULT_DEFINE_REFERENCE_TYPE)).ToString();
-                ProjectManager.Instance.LoadedProject.overrideDefineReferenceName =
-                    zQuery.GetString(OVERRIDE_DEFINE_REFRENCE_NAME).Trim();
-                ProjectManager.Instance.FireProjectUpdated(true);
-                LayoutManager.Instance.InitializeActiveLayout();
-            }
+            ProjectSettingsDialog.ShowProjectSettings(this);
         }
 
         private void treeView_ItemDrag(object sender, ItemDragEventArgs e)
@@ -593,6 +573,17 @@ namespace CardMaker.Forms
                     ProjectManager.Instance.FireProjectUpdated(true);
                 }
             }
+        }
+
+        private void windowsExplorerToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if(string.IsNullOrWhiteSpace(ProjectManager.Instance.ProjectPath)) return;
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo()
+            {
+                FileName = ProjectManager.Instance.ProjectPath,
+                UseShellExecute = true,
+                Verb = "open"
+            });
         }
 
         #endregion
